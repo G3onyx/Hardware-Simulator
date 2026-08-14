@@ -23,9 +23,6 @@ namespace Paths {
 }
 
 namespace Constants {
-    constexpr double DEFAULT_TARGET_HZ = 60.0;
-    constexpr double MAX_FPS = 60.0;
-
     constexpr uint32_t MAX_BUS_WIDTH = 64; // DO NOT CHANGE
 }
 
@@ -108,13 +105,15 @@ namespace Utils {
 }
 
 struct Config {
+    std::string active_config;
     std::string target_chip;
-    double clock_speed = 0.0;
+    double target_hz = 0.0;
+    double target_fps = 30.0;
+    bool max_speed = true;
     std::unordered_map<std::string, std::string> rom_map;
     std::vector<std::string> search_paths;
     std::unordered_map<std::string, std::string> pin_actions;
     bool run_tests = false;
-    bool start_paused = false;
 
     static Config load() {
         std::ifstream file(Paths::CONFIG_FILE);
@@ -129,38 +128,60 @@ struct Config {
         // Defer ROM resolution until all SEARCH_PATHs are processed
         std::vector<std::pair<std::string, std::string>> pending_roms;
 
+        std::string current_block;
         std::string line;
+
         while (std::getline(file, line)) {
             if (const size_t pos = line.find("//"); pos != std::string::npos) line.resize(pos);
             std::erase_if(line, [](const unsigned char c) { return std::isspace(c); });
+            if (line.empty()) continue;
+
+            // Block tracking
+            if (line.back() == '{') {
+                current_block = line.substr(0, line.size() - 1);
+                continue;
+            }
+            if (line == "}") {
+                current_block.clear();
+                continue;
+            }
 
             const size_t eq = line.find('=');
             if (eq != std::string::npos) {
                 const std::string key = line.substr(0, eq);
                 const std::string val = line.substr(eq + 1);
 
-                if (key == "TARGET_CHIP")
-                    config.target_chip = val;
-                else if (key == "CLOCK_SPEED")
-                    config.clock_speed = std::stod(val);
-                else if (key == "RUN_TESTS")
-                    config.run_tests = val == "true";
-                else if (key == "START_PAUSED")
-                    config.start_paused = val == "true";
-                else if (key == "LOAD_ROM") {
-                    const size_t colon = val.find(':');
-                    if (colon != std::string::npos) pending_roms.emplace_back(val.substr(0, colon), val.substr(colon + 1));
-                } else if (key == "SEARCH_PATH")
-                    Utils::add_unique_search_path(config.search_paths, Paths::PROJECTS_DIR + val);
-                else if (key == "PIN_ACTION") {
-                    const size_t colon = val.find(':');
-                    if (colon != std::string::npos) config.pin_actions[val.substr(0, colon)] = val.substr(colon + 1);
+                // Parse CONFIG first if it's at the global scope
+                if (current_block.empty() && key == "CONFIG") {
+                    config.active_config = val;
+                    continue;
+                }
+
+                // Only process global settings or settings matching the active config block
+                if (current_block.empty() || current_block == config.active_config) {
+                    if (key == "TARGET_CHIP") config.target_chip = val;
+                    else if (key == "CLOCK_SPEED") config.target_hz = std::stod(val);
+                    else if (key == "TARGET_FPS") config.target_fps = std::stod(val);
+                    else if (key == "MAX_SPEED") config.max_speed = (val == "true");
+                    else if (key == "RUN_TESTS") config.run_tests = (val == "true");
+                    else if (key == "LOAD_ROM") {
+                        const size_t colon = val.find(':');
+                        if (colon != std::string::npos) pending_roms.emplace_back(val.substr(0, colon), val.substr(colon + 1));
+                    } else if (key == "SEARCH_PATH")
+                        Utils::add_unique_search_path(config.search_paths, Paths::PROJECTS_DIR + val);
+                    else if (key == "PIN_ACTION") {
+                        const size_t colon = val.find(':');
+                        if (colon != std::string::npos) config.pin_actions[val.substr(0, colon)] = val.substr(colon + 1);
+                    }
                 }
             }
         }
 
+        if (config.active_config.empty())
+            throw std::runtime_error(std::format("[CRITICAL ERROR] '{}' is missing a global 'CONFIG = <name>' declaration", Paths::CONFIG_FILE));
+
         if (config.target_chip.empty())
-            throw std::runtime_error(std::format("[CRITICAL ERROR] '{}' is missing TARGET_CHIP", Paths::CONFIG_FILE));
+            throw std::runtime_error(std::format("[CRITICAL ERROR] '{}' block '{}' is missing TARGET_CHIP", Paths::CONFIG_FILE, config.active_config));
 
         for (const auto& [tag, file_name] : pending_roms)
             config.rom_map[tag] = Utils::resolve_file(file_name, config.search_paths);

@@ -31,10 +31,9 @@ struct AIG {
         std::cout << "\n=== AIG Debug ===\n";
         std::cout << "Total Nodes: " << nodes.size() << "\n";
 
-        if (verbose) {
+        if (verbose && !nodes.empty()) {
             std::cout << "\n--- Node Details ---\n";
-            if (!nodes.empty())
-                std::cout << "  [0] Const 0 | Refs: " << nodes[0].ref_count << "\n";
+            std::cout << "  [0] Const 0 | Refs: " << nodes[0].ref_count << " | Depth: " << nodes[0].depth << "\n";
 
             for (size_t i = 1; i < nodes.size(); ++i) {
                 const auto& node = nodes[i];
@@ -42,7 +41,9 @@ struct AIG {
 
                 // A node pointing entirely to Constant 0 represents a Primary Input/Leaf Node
                 if (node.left.data == 0 && node.right.data == 0) {
-                    std::cout << "Primary Input (Origin NetID: " << node.origin_net << ")";
+                    std::cout << "Primary Input ";
+                    if (node.origin_net != static_cast<NetID>(-1)) std::cout << "(Net: " << node.origin_net << ")";
+                    else std::cout << "(Unmapped)";
                 } else {
                     auto format_edge = [](const AIGEdge& e) {
                         return (e.is_inverted() ? "~" : "") + std::to_string(e.get_node());
@@ -50,7 +51,7 @@ struct AIG {
                     std::cout << "AND(" << format_edge(node.left) << ", " << format_edge(node.right) << ")";
                 }
 
-                std::cout << " | Refs: " << node.ref_count << "\n";
+                std::cout << " | Refs: " << node.ref_count << " | Depth: " << node.depth << "\n";
             }
         }
         std::cout << "=================\n\n";

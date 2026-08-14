@@ -2,168 +2,12 @@
 #include <vector>
 #include <optional>
 #include <unordered_map>
-#include <unordered_set>
 #include <set>
 #include <algorithm>
-#include <format>
 #include "AIG.h"
 #include "CompilerGraph.h"
 #include "Blueprint.h"
-#include "Utils.h"
 
-/// Groups identical, parallel gate-level instructions into 64-bit C++ bitwise operations.
-class Vectorizer {
-    struct VectorBundle {
-        std::vector<size_t> nodes;
-        int64_t out_step = 0;
-        int64_t in0_step = 0;
-        int64_t in1_step = 0;
-    };
-
-    std::vector<bool> is_vectorized;
-    std::vector<VectorBundle> bundles_at;
-
-    /// Scans ahead in the graph to find the longest valid chain of identical, parallel instructions.
-    static VectorBundle find_optimal_vector_bundle(const CompilerGraph& graph, const size_t root_node_idx) {
-        const CompNode& root_node = graph.nodes[root_node_idx];
-        VectorBundle best_bundle;
-
-        // Sweep lookahead distances to test different structural strides in the netlist
-        for (size_t lookahead = 1; lookahead <= 16; ++lookahead) {
-            const size_t target_idx = root_node_idx + lookahead;
-
-            if (target_idx >= graph.nodes.size() || graph.nodes[target_idx].is_dead || graph.nodes[target_idx].type != root_node.type) continue;
-            if (graph.nodes[target_idx].outputs.size() != 1 || graph.nodes[target_idx].inputs.size() != root_node.inputs.size()) continue;
-
-            // Calculate the expected stride sequence for this candidate bundle
-            const int64_t out_step = static_cast<int64_t>(graph.nodes[target_idx].outputs[0]) - static_cast<int64_t>(root_node.outputs[0]);
-            const int64_t in0_step = static_cast<int64_t>(graph.nodes[target_idx].inputs[0]) - static_cast<int64_t>(root_node.inputs[0]);
-            int64_t in1_step = 0;
-
-            if (root_node.type == PrimitiveType::AIG_AND) {
-                in1_step = static_cast<int64_t>(graph.nodes[target_idx].inputs[1]) - static_cast<int64_t>(root_node.inputs[1]);
-                // Arguments hold AIG inversion properties; they must match exactly to vectorize safely
-                if (graph.nodes[target_idx].args[0] != root_node.args[0] || graph.nodes[target_idx].args[1] != root_node.args[1]) continue;
-            }
-
-            if (out_step == 0) continue; // Safety check: prevent overwriting the same net repeatedly
-
-            std::vector candidate_nodes = {root_node_idx};
-            int64_t current_out = root_node.outputs[0];
-            int64_t current_in0 = root_node.inputs[0];
-            int64_t current_in1 = (root_node.type == PrimitiveType::AIG_AND) ? root_node.inputs[1] : 0;
-
-            std::unordered_set<NetID> skipped_outputs;
-            std::unordered_set bundled_outputs = { static_cast<NetID>(current_out) };
-
-            // Hazard Tracking: Record nodes bypassed by the initial lookahead leap
-            for (size_t prev = root_node_idx + 1; prev < target_idx; ++prev) {
-                if (!graph.nodes[prev].is_dead) {
-                    for (NetID out_net : graph.nodes[prev].outputs) skipped_outputs.insert(out_net);
-                }
-            }
-
-            // Gather compatible instructions, halting at the physical 64-bit integer limit
-            for (size_t k = target_idx; k < graph.nodes.size() && (k - root_node_idx) < 1000; ++k) {
-                if (graph.nodes[k].is_dead) continue;
-
-                if (graph.nodes[k].type == root_node.type &&
-                    graph.nodes[k].outputs.size() == 1 &&
-                    graph.nodes[k].inputs.size() == root_node.inputs.size() &&
-                    graph.nodes[k].outputs[0] == current_out + out_step &&
-                    graph.nodes[k].inputs[0] == current_in0 + in0_step) {
-
-                    bool structure_match = true;
-                    if (root_node.type == PrimitiveType::AIG_AND) {
-                        if (graph.nodes[k].inputs[1] != current_in1 + in1_step ||
-                            graph.nodes[k].args[0] != root_node.args[0] ||
-                            graph.nodes[k].args[1] != root_node.args[1]) structure_match = false;
-                    }
-
-                    if (structure_match) {
-                        bool hazard_detected = false;
-                        for (NetID in_net : graph.nodes[k].inputs) {
-                            if (skipped_outputs.contains(in_net) || bundled_outputs.contains(in_net)) {
-                                hazard_detected = true; break;
-                            }
-                        }
-
-                        if (!hazard_detected) {
-                            candidate_nodes.push_back(k);
-                            current_out = graph.nodes[k].outputs[0];
-                            current_in0 = graph.nodes[k].inputs[0];
-                            if (root_node.type == PrimitiveType::AIG_AND) current_in1 = graph.nodes[k].inputs[1];
-                            bundled_outputs.insert(current_out);
-
-                            // Prevent C++ bit-shift overflow (UB) on uint64_t types
-                            if (candidate_nodes.size() >= Constants::MAX_BUS_WIDTH) break;
-
-                            continue; // Successfully grouped; move to evaluate the next lookahead iteration
-                        }
-                    }
-                    }
-
-                // If rejected, the node becomes a topological hazard barrier for future vector candidates
-                for (NetID out_net : graph.nodes[k].outputs) skipped_outputs.insert(out_net);
-            }
-
-            if (candidate_nodes.size() > best_bundle.nodes.size())
-                best_bundle = {candidate_nodes, out_step, in0_step, in1_step};
-        }
-        return best_bundle;
-    }
-
-    /// Translates a VectorBundle into optimized C++ template calls for read_bus and write_bus.
-    static void emit_vectorized_instruction(std::ostream& out, const CompNode& root_node, const VectorBundle& best) {
-        const size_t width = best.nodes.size();
-
-        if (root_node.type == PrimitiveType::ROUTE) {
-            out << std::format("        write_bus<{}, {}>({}, read_bus<{}, {}>({}));\n", width, best.out_step, root_node.outputs[0], width, best.in0_step, root_node.inputs[0]);
-        } else if (root_node.type == PrimitiveType::AIG_NOT) {
-            out << std::format("        write_bus<{}, {}>({}, ~(read_bus<{}, {}>({})));\n", width, best.out_step, root_node.outputs[0], width, best.in0_step, root_node.inputs[0]);
-        } else if (root_node.type == PrimitiveType::AIG_AND) {
-            std::string in0_expr = std::format("read_bus<{}, {}>({})", width, best.in0_step, root_node.inputs[0]);
-            std::string in1_expr = std::format("read_bus<{}, {}>({})", width, best.in1_step, root_node.inputs[1]);
-
-            // Apply AIG constant folding inversions dynamically
-            if (root_node.args[0]) in0_expr = std::format("(~{})", in0_expr);
-            if (root_node.args[1]) in1_expr = std::format("(~{})", in1_expr);
-
-            out << std::format("        write_bus<{}, {}>({}, {} & {});\n", width, best.out_step, root_node.outputs[0], in0_expr, in1_expr);
-        }
-    }
-
-public:
-    explicit Vectorizer(const CompilerGraph& graph) : is_vectorized(graph.nodes.size(), false), bundles_at(graph.nodes.size()) {
-        for (size_t i = 0; i < graph.nodes.size(); ++i) {
-            if (graph.nodes[i].is_dead || is_vectorized[i]) continue;
-            if (graph.nodes[i].type != PrimitiveType::ROUTE && graph.nodes[i].type != PrimitiveType::AIG_AND && graph.nodes[i].type != PrimitiveType::AIG_NOT) continue;
-            if (graph.nodes[i].outputs.size() != 1 || graph.nodes[i].inputs.empty()) continue;
-
-            const VectorBundle bundle = find_optimal_vector_bundle(graph, i);
-            if (bundle.nodes.size() >= 3) {
-                bundles_at[i] = bundle;
-                for (const size_t idx : bundle.nodes) is_vectorized[idx] = true;
-            }
-        }
-    }
-
-    /// Evaluates if the current node belongs to a bundle.
-    /// If it is the root of the bundle, it emits the optimized C++ and returns true.
-    /// If it is skipped data inside a bundle, it suppresses scalar emission and returns true.
-    /// Returns false if the transpiler should emit a standard scalar operation.
-    bool handle_node(std::ostream& out, const size_t node_idx, const CompNode& node) const {
-        if (!bundles_at[node_idx].nodes.empty()) {
-            emit_vectorized_instruction(out, node, bundles_at[node_idx]);
-            return true;
-        }
-        return is_vectorized[node_idx];
-    }
-
-    [[nodiscard]] bool is_node_vectorized(const size_t node_idx) const {
-        return is_vectorized[node_idx];
-    }
-};
 
 class Optimiser {
     /// Translates the raw gate-level netlist into a structurally hashed AND-Inverter Graph (AIG)
@@ -242,19 +86,21 @@ class Optimiser {
             bit_map[NET_TRUE]  = AIGEdge::make(0, true);
 
             // Pre-map the physical Top-Level Input pins
-            for (const auto& [name, nets] : graph.io_mapping) {
+            for (const auto& [name, net] : graph.io_mapping) {
                 if (std::ranges::find(top_bp.in_wires, name) != top_bp.in_wires.end()) {
-                    for (const NetID net : nets) {
-                        const uint32_t id = aig.nodes.size();
-                        aig.nodes.push_back({AIGEdge::make(0), AIGEdge::make(0), 0, net});
-                        bit_map[net] = AIGEdge::make(id, false);
-                    }
+                    const uint32_t id = aig.nodes.size();
+                    aig.nodes.push_back({AIGEdge::make(0), AIGEdge::make(0), 0, net});
+                    bit_map[net] = AIGEdge::make(id, false);
                 }
             }
 
             // Pre-map Sequential/Macro outputs globally so they behave as root inputs to combinational logic
             for (const auto& node : graph.nodes) {
-                if (node.is_dead || node.type == PrimitiveType::NAND || node.type == PrimitiveType::ROUTE) continue;
+                if (node.is_dead) continue;
+                // Only bit-blast single-bit logic gates
+                if (node.type == PrimitiveType::NAND && graph.net_widths[node.outputs[0]] == 1) continue;
+                if (node.type == PrimitiveType::ROUTE) continue; // Resolved separately
+
                 for (const NetID out_net : node.outputs) {
                     if (!bit_map[out_net].has_value()) {
                         const uint32_t id = aig.nodes.size();
@@ -272,7 +118,7 @@ class Optimiser {
             // Build a lookup table to answer "Which node drives this NetID?"
             for (const auto& node : graph.nodes) {
                 if (node.is_dead) continue;
-                if (node.type == PrimitiveType::NAND || node.type == PrimitiveType::ROUTE) {
+                if ((node.type == PrimitiveType::NAND && graph.net_widths[node.outputs[0]] == 1) || node.type == PrimitiveType::ROUTE) {
                     for (const NetID out_net : node.outputs) net_to_node[out_net] = &node;
                 }
             }
@@ -280,7 +126,7 @@ class Optimiser {
             // Perform Topological DFS to resolve all paths safely
             for (const auto& node : graph.nodes) {
                 if (node.is_dead) continue;
-                if (node.type == PrimitiveType::NAND || node.type == PrimitiveType::ROUTE) {
+                if ((node.type == PrimitiveType::NAND && graph.net_widths[node.outputs[0]] == 1) || node.type == PrimitiveType::ROUTE) {
                     for (const NetID out_net : node.outputs) resolve_net_recursively(out_net);
                 }
             }
@@ -293,13 +139,12 @@ class Optimiser {
         static std::set<NetID> identify_required_sinks(const CompilerGraph& graph, const Blueprint& top_bp) {
             std::set<NetID> sink_nets;
             for (const auto& node : graph.nodes) {
-                if (node.is_dead || node.type == PrimitiveType::NAND) continue;
+                if (node.is_dead) continue;
+                if (node.type == PrimitiveType::NAND && graph.net_widths[node.outputs[0]] == 1) continue;
                 for (NetID in_net : node.inputs) sink_nets.insert(in_net);
             }
-            for (const auto& [name, nets] : graph.io_mapping) {
-                if (std::ranges::find(top_bp.out_wires, name) != top_bp.out_wires.end()) {
-                    for (NetID n : nets) sink_nets.insert(n);
-                }
+            for (const auto& [name, net] : graph.io_mapping) {
+                if (std::ranges::find(top_bp.out_wires, name) != top_bp.out_wires.end()) sink_nets.insert(net);
             }
             return sink_nets;
         }
@@ -387,67 +232,53 @@ class Optimiser {
     /// Shrinks the physical state[] array by forcing all localized logic to use transient NetIDs
     static void minimize_state_elements(CompilerGraph &graph) {
         std::vector array_bound(graph.net_count, false);
-
-        // Core global memory hooks
         array_bound[NET_FALSE] = true;
         array_bound[NET_TRUE] = true;
-        for (const auto& nets : graph.io_mapping | std::views::values) {
-            for (const NetID n : nets) array_bound[n] = true;
-        }
 
-        // Hardware state dependencies (RAM, ROM, DFF, Peripherals)
+        for (const auto& net : graph.io_mapping | std::views::values) array_bound[net] = true;
+
         for (const auto& node : graph.nodes) {
             if (node.is_dead) continue;
-            if (node.type != PrimitiveType::ROUTE && node.type != PrimitiveType::AIG_AND && node.type != PrimitiveType::AIG_NOT) {
+            // Transient local nodes that can be stripped from the state array
+            if (node.type != PrimitiveType::AIG_AND && node.type != PrimitiveType::AIG_NOT &&
+                node.type != PrimitiveType::MACRO_MATH && node.type != PrimitiveType::MACRO_COMPARE &&
+                node.type != PrimitiveType::MACRO_UNARY && node.type != PrimitiveType::MACRO_MUX &&
+                node.type != PrimitiveType::MACRO_DMUX && node.type != PrimitiveType::SLICE &&
+                node.type != PrimitiveType::CONCAT && node.type != PrimitiveType::CONSTANT) {
                 for (const NetID input : node.inputs) array_bound[input] = true;
                 for (const NetID output : node.outputs) array_bound[output] = true;
             }
         }
 
-        // Prevent fast vectorised bundles from ripping themselves out of the bus
-        const Vectorizer vec(graph);
-        for (size_t i = 0; i < graph.nodes.size(); ++i) {
-            if (vec.is_node_vectorized(i)) {
-                for (const NetID input : graph.nodes[i].inputs) array_bound[input] = true;
-                for (const NetID output : graph.nodes[i].outputs) array_bound[output] = true;
-            }
-        }
-
-        // Remap the graph cleanly
         std::vector<NetID> net_remap(graph.net_count, 0);
-        uint32_t state_idx = 2; // [0, 1] are reserved
-
+        uint32_t state_idx = 2;
         uint32_t total_state_nets = 2;
-        for (uint32_t i = 2; i < graph.net_count; ++i) {
-            if (array_bound[i]) total_state_nets++;
-        }
+        for (uint32_t i = 2; i < graph.net_count; ++i) if (array_bound[i]) total_state_nets++;
 
         uint32_t temp_idx = total_state_nets;
         net_remap[NET_FALSE] = NET_FALSE;
         net_remap[NET_TRUE] = NET_TRUE;
 
-        // Force 'array_bound' variables to the bottom of the stack, and local 'const uint8_t n_X' logic upwards
         for (uint32_t i = 2; i < graph.net_count; ++i) {
             if (array_bound[i]) net_remap[i] = state_idx++;
             else net_remap[i] = temp_idx++;
         }
+
+        std::vector<uint32_t> new_widths(graph.net_count, 1);
+        for (uint32_t i = 2; i < graph.net_count; ++i) new_widths[net_remap[i]] = graph.net_widths[i];
+        graph.net_widths = std::move(new_widths);
 
         for (auto& node : graph.nodes) {
             if (node.is_dead) continue;
             for (auto& in : node.inputs) in = net_remap[in];
             for (auto& out : node.outputs) out = net_remap[out];
         }
-        for (auto& nets : graph.io_mapping | std::views::values) {
-            for (auto& n : nets) n = net_remap[n];
-        }
+        for (auto& net : graph.io_mapping | std::views::values) net = net_remap[net];
 
-        // Truncate memory allocation ceiling natively before the transpiler runs
         graph.net_count = total_state_nets;
     }
 
 public:
-    /// Primary entrance for deep structural logic optimization.
-    /// Replaces the raw unoptimized NAND netlist with a heavily compressed and routed AIG.
     static void optimise_graph(CompilerGraph &graph, const Blueprint &top_bp) {
         std::vector<std::optional<AIGEdge>> bit_map(graph.net_count, std::nullopt);
         AIG aig;
@@ -458,7 +289,8 @@ public:
 
         // Tombstone the original logic before compacting and emitting the optimized logic
         for (auto& node : graph.nodes) {
-            if (node.type == PrimitiveType::NAND || node.type == PrimitiveType::ROUTE) node.is_dead = true;
+            if (node.type == PrimitiveType::NAND && graph.net_widths[node.outputs[0]] == 1)
+                node.is_dead = true;
         }
         graph.compact_graph();
 

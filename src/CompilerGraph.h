@@ -16,6 +16,7 @@ enum class PrimitiveType : uint8_t {
     NAND, DFF, RAM, ROM, // True primitives
     ROUTE, PERIPHERAL,
     AIG_AND, AIG_NOT,
+    SLICE, CONCAT, CONSTANT, // RTL primitives
     DEAD,
 
     // Structural macro categories
@@ -39,12 +40,16 @@ struct CompNode {
 class CompilerGraph {
 public:
     uint32_t net_count = 2;
+    std::vector<uint32_t> net_widths = {1, 1};
     std::vector<CompNode> nodes;
 
     // Only stores strings for the absolute top-level pins so the Host C++ API can find them
-    std::unordered_map<std::string, std::vector<NetID>> io_mapping;
+    std::unordered_map<std::string, NetID> io_mapping;
 
-    NetID add_net() { return net_count++; }
+    NetID add_net(const uint32_t width = 1) {
+        net_widths.push_back(width);
+        return net_count++;
+    }
 
     NodeID add_node(const PrimitiveType type,
                     const std::vector<NetID> &inputs = {},
@@ -114,9 +119,8 @@ public:
         }
 
         // Update the top-level IO mapping so Host APIs access the correct physical nets
-        for (auto &nets: io_mapping | std::views::values) {
-            for (auto& net : nets) net = get_true_source(net);
-        }
+        for (auto &net: io_mapping | std::views::values)
+            net = get_true_source(net);
     }
 
     /// Reallocates NetIDs to remove unused "holes" in the state array, maximizing CPU cache locality.
@@ -136,9 +140,7 @@ public:
             for (const NetID in : node.inputs) net_used[in] = true;
             for (const NetID out : node.outputs) net_used[out] = true;
         }
-        for (const auto& nets : io_mapping | std::views::values) {
-            for (const NetID n : nets) net_used[n] = true;
-        }
+        for (const auto &net: io_mapping | std::views::values) net_used[net] = true;
 
         // Build the contiguous mapping
         uint32_t new_net_count = 2;
@@ -146,17 +148,21 @@ public:
             if (net_used[i]) net_remap[i] = new_net_count++;
         }
 
+        std::vector<uint32_t> new_widths(new_net_count, 1);
+        for(uint32_t i = 2; i < net_count; ++i) {
+            if (net_used[i]) new_widths[net_remap[i]] = net_widths[i];
+        }
+        net_widths = std::move(new_widths);
+
         // Apply the mapping to shift all pointers down
         for (auto& node : nodes) {
             if (node.is_dead) continue;
             for (auto& in : node.inputs) in = net_remap[in];
             for (auto& out : node.outputs) out = net_remap[out];
         }
-        for (auto& nets : io_mapping | std::views::values) {
-            for (auto& n : nets) n = net_remap[n];
-        }
+        for (auto &net: io_mapping | std::views::values) net = net_remap[net];
 
-        net_count = new_net_count; // Shrink the array
+        net_count = new_net_count;
     }
 
     void sort_nodes() {
@@ -178,10 +184,8 @@ public:
 
             // Break false combinational cycles: RAM outputs only depend combinationally on the address
             if (nodes[i].type == PrimitiveType::RAM) {
-                const uint32_t data_w = nodes[i].args[1];
-                const uint32_t addr_w = nodes[i].args[0];
-                start_in = data_w;
-                end_in = data_w + addr_w;
+                start_in = 1;
+                end_in = 2;
             }
 
             for (size_t j = start_in; j < end_in; ++j) {
@@ -210,7 +214,7 @@ public:
 
         size_t head = 0;
         while (head < queue.size()) {
-            uint32_t u = queue[head++];
+            const uint32_t u = queue[head++];
             sorted.push_back(std::move(nodes[u]));
             for (uint32_t v : adj[u]) {
                 if (--in_degrees[v] == 0) queue.push_back(v);
@@ -227,7 +231,7 @@ public:
     }
 
     void print_debug(const bool verbose = false) const {
-        std::cout << "=== CompilerGraph Debug ===\n";
+        std::cout << "\n=== CompilerGraph Debug ===\n";
 
         uint32_t active_nodes = 0;
         for (const auto& node : nodes) {
@@ -248,7 +252,15 @@ public:
                     case PrimitiveType::PERIPHERAL: return "PERIPHERAL";
                     case PrimitiveType::AIG_AND: return "AIG_AND";
                     case PrimitiveType::AIG_NOT: return "AIG_NOT";
+                    case PrimitiveType::SLICE: return "SLICE";
+                    case PrimitiveType::CONCAT: return "CONCAT";
+                    case PrimitiveType::CONSTANT: return "CONSTANT";
                     case PrimitiveType::DEAD: return "DEAD";
+                    case PrimitiveType::MACRO_MATH: return "MACRO_MATH";
+                    case PrimitiveType::MACRO_COMPARE: return "MACRO_COMPARE";
+                    case PrimitiveType::MACRO_UNARY: return "MACRO_UNARY";
+                    case PrimitiveType::MACRO_MUX: return "MACRO_MUX";
+                    case PrimitiveType::MACRO_DMUX: return "MACRO_DMUX";
                     default: return "UNKNOWN";
                 }
             };
@@ -259,27 +271,25 @@ public:
 
                 std::cout << "  [" << i << "] " << type_to_string(nodes[i].type);
                 if (!nodes[i].chip_type.empty()) std::cout << " (" << nodes[i].chip_type << ")";
-                if (!nodes[i].debug_name.empty()) std::cout << " '" << nodes[i].debug_name << "'";
+                if (!nodes[i].debug_name.empty()) std::cout << " op:'" << nodes[i].debug_name << "'";
+                if (!nodes[i].tag.empty()) std::cout << " tag:{" << nodes[i].tag << "}";
 
                 std::cout << "\n    In:  ";
-                for (const auto in : nodes[i].inputs) std::cout << in << " ";
+                for (const auto in : nodes[i].inputs) std::cout << in << " (w:" << net_widths[in] << ")  ";
 
                 std::cout << "\n    Out: ";
-                for (const auto out : nodes[i].outputs) std::cout << out << " ";
+                for (const auto out : nodes[i].outputs) std::cout << out << " (w:" << net_widths[out] << ")  ";
 
                 if (!nodes[i].args.empty()) {
                     std::cout << "\n    Args: ";
-                    for (auto a : nodes[i].args) std::cout << a << " ";
+                    for (const auto a : nodes[i].args) std::cout << a << " ";
                 }
-                std::cout << "\n";
+                std::cout << "\n\n";
             }
 
-            std::cout << "\n--- IO Mapping ---\n";
-            for (const auto& [name, nets] : io_mapping) {
-                std::cout << "  " << name << ": ";
-                for (const auto n : nets) std::cout << n << " ";
-                std::cout << "\n";
-            }
+            std::cout << "--- IO Mapping ---\n";
+            for (const auto& [name, net] : io_mapping)
+                std::cout << "  " << name << " -> Net " << net << "\n";
         }
         std::cout << "===========================\n\n";
     }

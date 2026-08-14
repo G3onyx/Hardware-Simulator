@@ -42,13 +42,19 @@ struct KeyboardDriver {
             {"KEY_LEFT_BRACKET", GLFW_KEY_LEFT_BRACKET}, {"KEY_RIGHT_BRACKET", GLFW_KEY_RIGHT_BRACKET},
             {"KEY_SEMICOLON", GLFW_KEY_SEMICOLON}, {"KEY_APOSTROPHE", GLFW_KEY_APOSTROPHE},
             {"KEY_COMMA", GLFW_KEY_COMMA}, {"KEY_PERIOD", GLFW_KEY_PERIOD}, {"KEY_SLASH", GLFW_KEY_SLASH},
+            {"KEY_GRAVE_ACCENT", GLFW_KEY_GRAVE_ACCENT}, {"KEY_BACKSLASH", GLFW_KEY_BACKSLASH}, {"KEY_TAB", GLFW_KEY_TAB},
 
             {"KEY_UP", GLFW_KEY_UP}, {"KEY_DOWN", GLFW_KEY_DOWN},
             {"KEY_LEFT", GLFW_KEY_LEFT}, {"KEY_RIGHT", GLFW_KEY_RIGHT},
+            {"KEY_HOME", GLFW_KEY_HOME}, {"KEY_END", GLFW_KEY_END},
+            {"KEY_PAGE_UP", GLFW_KEY_PAGE_UP}, {"KEY_PAGE_DOWN", GLFW_KEY_PAGE_DOWN},
+            {"KEY_INSERT", GLFW_KEY_INSERT}, {"KEY_DELETE", GLFW_KEY_DELETE},
 
             {"KEY_LEFT_SHIFT", GLFW_KEY_LEFT_SHIFT}, {"KEY_RIGHT_SHIFT", GLFW_KEY_RIGHT_SHIFT},
             {"KEY_LEFT_CONTROL", GLFW_KEY_LEFT_CONTROL}, {"KEY_RIGHT_CONTROL", GLFW_KEY_RIGHT_CONTROL},
             {"KEY_LEFT_ALT", GLFW_KEY_LEFT_ALT}, {"KEY_RIGHT_ALT", GLFW_KEY_RIGHT_ALT},
+            {"KEY_CAPS_LOCK", GLFW_KEY_CAPS_LOCK}, {"KEY_PAUSE", GLFW_KEY_PAUSE},
+            {"KEY_PRINT_SCREEN", GLFW_KEY_PRINT_SCREEN}, {"KEY_SCROLL_LOCK", GLFW_KEY_SCROLL_LOCK},
 
             {"KEY_F1", GLFW_KEY_F1}, {"KEY_F2", GLFW_KEY_F2}, {"KEY_F3", GLFW_KEY_F3},
             {"KEY_F4", GLFW_KEY_F4}, {"KEY_F5", GLFW_KEY_F5}, {"KEY_F6", GLFW_KEY_F6},
@@ -255,40 +261,61 @@ void render_screen(const HardwareState& info, const GLuint screen_texture, const
 
 
 struct PerformanceAnalyzer {
-    int frames_this_second = 0;
-    uint64_t cycles_this_second = 0;
-    double sim_time_this_second = 0.0;
+    int frames_this_interval = 0;
+    uint64_t cycles_this_interval = 0;
+    double sim_time_this_interval = 0.0;
     std::chrono::time_point<std::chrono::high_resolution_clock> last_report_time = std::chrono::high_resolution_clock::now();
+    bool force_update = true;
+    bool was_paused = false;
 
     void record_batch(const uint64_t cycles, const double sim_time_sec) {
-        cycles_this_second += cycles;
-        sim_time_this_second += sim_time_sec;
-        frames_this_second++;
+        cycles_this_interval += cycles;
+        sim_time_this_interval += sim_time_sec;
+        frames_this_interval++;
     }
 
-    void update_and_report(GLFWwindow* window, const std::string& chip_name, const double target_hz, const double actual_hz) {
+    void update_and_report(GLFWwindow* window, const std::string& chip_name, const double target_hz,
+                           const double target_fps, const bool is_max_speed, const bool is_paused) {
+
         const auto current_time = std::chrono::high_resolution_clock::now();
         const std::chrono::duration<double> elapsed = current_time - last_report_time;
 
-        if (elapsed.count() >= 1.0) {
-            double current_fps = frames_this_second / elapsed.count();
-            double current_mhz = cycles_this_second / elapsed.count() / 1000000.0;
+        // Force an instant UI update if the user toggles the pause state
+        if (is_paused != was_paused) force_update = true;
 
-            // Percentage of the frame spent purely in emulate_frame() vs OS/rendering
-            double sim_load_pct = (sim_time_this_second / elapsed.count()) * 100.0;
+        if (elapsed.count() >= 0.5 || force_update) {
+            // Protect against divide-by-zero on ultra-fast sub-millisecond frames
+            const double safe_elapsed = std::max(elapsed.count(), 0.0001);
+
+            double current_fps = frames_this_interval / safe_elapsed;
+            double current_mhz = (cycles_this_interval / safe_elapsed) / 1000000.0;
+            double sim_load_pct = std::clamp((sim_time_this_interval / safe_elapsed) * 100.0, 0.0, 100.0);
+
+            if (is_paused) {
+                current_fps = 0.0;
+                current_mhz = 0.0;
+                sim_load_pct = 0.0;
+            }
 
             std::string title;
-            if (target_hz > 0.0)
-                title = std::format("Simulating {} @ {:.2f} MHz [{:.1f} FPS | Sim Load: {:.1f}%]", chip_name, target_hz / 1000000.0, current_fps, sim_load_pct);
-            else
-                title = std::format("Simulating {} @ MAX {:.2f} MHz [{:.1f} FPS | Sim Load: {:.1f}%]", chip_name, current_mhz, current_fps, sim_load_pct);
+            if (is_paused) {
+                title = std::format("[PAUSED] Simulating {} | Target: {:.0f} FPS", chip_name, target_fps);
+            } else if (is_max_speed || target_hz <= 0.0) {
+                title = std::format("Simulating {} | {:.0f} / {:.0f} FPS | {:.2f} MHz (MAX) | CPU Load: {:.1f}%",
+                                    chip_name, current_fps, target_fps, current_mhz, sim_load_pct);
+            } else {
+                title = std::format("Simulating {} | {:.0f} / {:.0f} FPS | {:.2f} / {:.2f} MHz | CPU Load: {:.1f}%",
+                                    chip_name, current_fps, target_fps, current_mhz, target_hz / 1000000.0, sim_load_pct);
+            }
 
             glfwSetWindowTitle(window, title.c_str());
 
-            frames_this_second = 0;
-            cycles_this_second = 0;
-            sim_time_this_second = 0.0;
+            frames_this_interval = 0;
+            cycles_this_interval = 0;
+            sim_time_this_interval = 0.0;
             last_report_time = current_time;
+            force_update = false;
+            was_paused = is_paused;
         }
     }
 };
@@ -296,8 +323,8 @@ struct PerformanceAnalyzer {
 
 /// CAPPED MODE: Accurately paces the simulator to a specific frequency
 uint64_t run_capped_mode(IDynamicChip* chip, const double target_hz, const double dt, const bool is_paused, bool& step_requested,
-                         double& cycle_accumulator, const KeyboardDriver& kb_driver, GLFWwindow* window, double& sim_time_sec) {
-
+                         double& cycle_accumulator, const KeyboardDriver& kb_driver, GLFWwindow* window, double& sim_time_sec)
+{
     cycle_accumulator += dt * target_hz;
     const auto cycles_this_frame = static_cast<uint64_t>(cycle_accumulator);
     cycle_accumulator -= static_cast<double>(cycles_this_frame);
@@ -325,13 +352,12 @@ uint64_t run_capped_mode(IDynamicChip* chip, const double target_hz, const doubl
 
 
 /// UNCAPPED MODE: dynamically discovers max speed and saturates 95% of the frame budget
-uint64_t run_uncapped_mode(IDynamicChip* chip, const bool is_paused, bool& step_requested, double& actual_hz,
-                           const KeyboardDriver& kb_driver, GLFWwindow* window,
-                           const std::chrono::time_point<std::chrono::high_resolution_clock>& frame_start_time,
-                           double& sim_time_sec) {
-
+uint64_t run_uncapped_mode(IDynamicChip* chip, const double target_fps, const bool is_paused, bool& step_requested,
+    const KeyboardDriver& kb_driver, double& actual_hz, const std::chrono::time_point<std::chrono::high_resolution_clock>& frame_start_time,
+    GLFWwindow* window, double& sim_time_sec)
+{
     static uint64_t cycles_per_frame = 50000;
-    constexpr double TARGET_FRAME_DT = 1.0 / Constants::MAX_FPS;
+    const double TARGET_FRAME_DT = 1.0 / target_fps;
 
     uint64_t cycles_to_run = cycles_per_frame;
     if (is_paused) {
@@ -344,14 +370,16 @@ uint64_t run_uncapped_mode(IDynamicChip* chip, const bool is_paused, bool& step_
     const auto t1 = std::chrono::high_resolution_clock::now();
     sim_time_sec = std::chrono::duration<double>(t1 - t0).count();
 
-    // Tune dynamic batch size
+    // Tune dynamic batch size with a damped proportional controller
     if (!is_paused && sim_time_sec > 0.0001) {
-        const double current_cps = cycles_per_frame / sim_time_sec;
-        static double smoothed_cps = current_cps;
-        smoothed_cps = smoothed_cps * 0.90 + current_cps * 0.10; // Stabilize heavily with EMA
+        const std::chrono::duration<double> work_elapsed = std::chrono::high_resolution_clock::now() - frame_start_time;
+        const double target_work_time = TARGET_FRAME_DT * 0.95;
 
-        // Target 95% of the frame budget to leave a sliver of time for OS execution/rendering
-        cycles_per_frame = static_cast<uint64_t>(smoothed_cps * TARGET_FRAME_DT * 0.95);
+        // Target ratio clamped to +/- 2% max drift per frame for ultra-smooth long-term stabilization
+        double adjustment = target_work_time / work_elapsed.count();
+        adjustment = std::clamp(adjustment, 0.98, 1.02);
+
+        cycles_per_frame = static_cast<uint64_t>(static_cast<double>(cycles_per_frame) * adjustment);
         if (cycles_per_frame < 1000) cycles_per_frame = 1000; // Floor safety net
     }
 
@@ -366,7 +394,7 @@ uint64_t run_uncapped_mode(IDynamicChip* chip, const bool is_paused, bool& step_
             std::this_thread::yield();
     }
 
-    actual_hz = is_paused ? 0.0 : (static_cast<double>(cycles_per_frame) / TARGET_FRAME_DT);
+    actual_hz = is_paused ? 0.0 : static_cast<double>(cycles_per_frame) / TARGET_FRAME_DT;
     return cycles_to_run;
 }
 
@@ -406,7 +434,7 @@ int main([[maybe_unused]] const int argc, char *argv[]) {
     double cycle_accumulator = 0.0;
     bool was_F5_pressed = false;
 
-    bool is_paused = config.start_paused;
+    bool is_paused = false;
     uint64_t total_cycles = 0;
 
     bool step_requested = false;
@@ -422,9 +450,9 @@ int main([[maybe_unused]] const int argc, char *argv[]) {
         glfwPollEvents();
 
         // Pausing (Shift + P)
-        bool shift_pressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
-        bool p_pressed = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
-        bool pause_pressed = p_pressed && shift_pressed;
+        const bool shift_pressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+        const bool p_pressed = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
+        const bool pause_pressed = p_pressed && shift_pressed;
         if (pause_pressed && !was_pause_pressed) {
             is_paused = !is_paused;
             std::cout << "[Simulator] " << (is_paused ? "Paused" : "Resumed") << "\n";
@@ -432,7 +460,7 @@ int main([[maybe_unused]] const int argc, char *argv[]) {
         was_pause_pressed = pause_pressed;
 
         // Stepping (O key, when paused)
-        bool step_pressed = glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS;
+        const bool step_pressed = glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS;
         if (step_pressed && !was_step_pressed && is_paused) {
             step_requested = true;
             std::cout << "[Simulator] Step: " << total_cycles + 1 << "\n";
@@ -443,7 +471,7 @@ int main([[maybe_unused]] const int argc, char *argv[]) {
         if (handle_hot_reloading(window, chip_manager, config, exe_dir, was_F5_pressed, screen_texture)) {
             cycle_accumulator = 0.0;
 
-            is_paused = config.start_paused;
+            is_paused = false;
             total_cycles = 0;
         }
 
@@ -456,18 +484,18 @@ int main([[maybe_unused]] const int argc, char *argv[]) {
 
         if (IDynamicChip* active_chip = chip_manager.get_chip()) {
             const HardwareState info = active_chip->get_info();
-            const double target_hz = info.target_hz > 0.0 ? info.target_hz : config.clock_speed;
+            const double target_hz = info.target_hz > 0.0 ? info.target_hz : config.target_hz;
             double actual_hz = target_hz;
 
-            kb_driver.apply_pins(window, active_chip);
+            if (!is_paused) kb_driver.apply_pins(window, active_chip);
 
             uint64_t cycles_run = 0;
             double sim_time_sec = 0.0;
 
-            if (target_hz > 0.0) {
+            if (!config.max_speed && target_hz > 0.0) {
                 cycles_run = run_capped_mode(active_chip, target_hz, dt.count(), is_paused, step_requested, cycle_accumulator, kb_driver, window, sim_time_sec);
             } else {
-                cycles_run = run_uncapped_mode(active_chip, is_paused, step_requested, actual_hz, kb_driver, window, current_time, sim_time_sec);
+                cycles_run = run_uncapped_mode(active_chip, config.target_fps, is_paused, step_requested, kb_driver, actual_hz, current_time, window, sim_time_sec);
                 last_frame_time = std::chrono::high_resolution_clock::now(); // Prevent large dt jump after uncapped sleep
             }
 
@@ -475,7 +503,7 @@ int main([[maybe_unused]] const int argc, char *argv[]) {
             analyzer.record_batch(cycles_run, sim_time_sec);
 
             render_screen(info, screen_texture, cycles_run > 0);
-            analyzer.update_and_report(window, config.target_chip, target_hz, actual_hz);
+            analyzer.update_and_report(window, config.target_chip, target_hz, config.target_fps, config.max_speed, is_paused);
 
         } else if (chip_manager.is_busy()) {
             glfwSetWindowTitle(window, ("Loading " + chip_manager.target_name + "...").c_str());

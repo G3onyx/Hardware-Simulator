@@ -35,13 +35,24 @@ class DynamicChipManager {
         const std::string h_path = std::format("{}{}.h", Paths::CPP_DIR, chip_name);
         const std::string dll_path = std::format("{}{}.dll", Paths::CPP_DIR, chip_name);
 
-        if (!Utils::is_outdated(h_path, dll_path)) return true;
+        if (!Utils::is_outdated(h_path, dll_path)) {
+            std::cout << "[Manager] " << chip_name << ".dll is up to date. Skipping.\n";
+            return true;
+        }
 
         const std::string compile_cmd = std::format(
             R"(g++ -shared -DBUILD_DYNAMIC_LIBRARY -std=c++20 -O3 -march=native -static-libgcc -static-libstdc++ -Isrc -x c++ -o "{}" "{}")",
             dll_path, h_path
         );
-        return std::system(compile_cmd.c_str()) == 0;
+
+        std::cout << "[Manager] Compiling " << chip_name << ".dll..." << std::flush;
+
+        const bool success = std::system(compile_cmd.c_str()) == 0;
+
+        if (success) std::cout << " COMPLETE\n";
+        else std::cout << " FAILED\n";
+
+        return success;
     }
 
 public:
@@ -124,12 +135,12 @@ public:
         return true;
     }
 
-    [[nodiscard]] IDynamicChip* get_chip() const { return current_instance; }
+    [[nodiscard]] IDynamicChip* get_chip() const { return current_instance; } // NOLINT
 
 private:
     void unload_current() {
-        if (current_instance && current_destroy_fn) current_destroy_fn(current_instance);
-        if (current_dll) FreeLibrary(current_dll);
+        if (current_instance && current_destroy_fn) current_destroy_fn(current_instance); // NOLINT
+        if (current_dll) FreeLibrary(current_dll); // NOLINT
         if (!current_temp_dll.empty()) {
             std::error_code ec;
             std::filesystem::remove(current_temp_dll, ec);

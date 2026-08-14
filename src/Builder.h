@@ -137,55 +137,92 @@ class Builder {
         return interpret_literal(expr);
     }
 
-    static void resolve_chunk(const Chunk & chunk, const Scope &scope, CompilerGraph &graph, std::vector<NetID> &target) {
-        if (std::holds_alternative<Slice>(chunk)) {
-            const auto &slice = std::get<Slice>(chunk);
-            const uint32_t rep_count = resolve_value(slice.rep_count, scope);
+    static NetID resolve_bundle(const Bundle& bundle, const Scope &scope, CompilerGraph &graph) {
+        std::vector<NetID> parts;
+        std::vector<uint32_t> part_widths;
 
-            if (slice.wire_name == "_") {
-                for (uint32_t r = 0; r < rep_count; ++r) target.push_back(graph.add_net());
-                return;
-            }
+        for (const auto & it : std::ranges::reverse_view(bundle)) {
+            if (std::holds_alternative<Slice>(it)) {
+                const auto &slice = std::get<Slice>(it);
+                const uint32_t rep_count = resolve_value(slice.rep_count, scope);
 
-            if (!scope.nets.contains(slice.wire_name))
-                throw std::runtime_error("Net not found in scope: '" + slice.wire_name + "'");
+                if (slice.wire_name == "_") {
+                    uint32_t w = 1;
+                    if (!slice.msb.empty() && !slice.lsb.empty())
+                        w = std::abs(static_cast<int>(resolve_value(slice.msb, scope)) - static_cast<int>(resolve_value(slice.lsb, scope))) + 1;
 
-            const NetID base_id = scope.nets.at(slice.wire_name);
-            uint16_t left = 0, right = 0;
-
-            if (!slice.lsb.empty()) {
-                left = resolve_value(slice.lsb, scope);
-                right = slice.msb.empty() ? left : resolve_value(slice.msb, scope);
-            } else if (!slice.wire_dims.empty()) {
-                left = resolve_value(slice.wire_dims[0], scope);
-                right = left;
-            } else {
-                left = 0;
-                right = scope.widths.at(slice.wire_name) - 1;
-            }
-
-            for (uint32_t r = 0; r < rep_count; ++r) {
-                if (left <= right) {
-                    for (int b = left; b <= right; ++b) target.push_back(base_id + b);
-                } else {
-                    for (int b = left; b >= right; --b) target.push_back(base_id + b);
+                    NetID dummy = graph.add_net(w);
+                    graph.add_node(PrimitiveType::CONSTANT, {}, {dummy}, {0, 0}, "CONSTANT");
+                    for (uint32_t r = 0; r < rep_count; ++r) { parts.push_back(dummy); part_widths.push_back(w); }
+                    continue;
                 }
-            }
-        } else {
-            const auto &[val_str, rep_str] = std::get<Literal>(chunk);
-            const uint32_t rep_count = resolve_value(rep_str, scope);
-            const uint32_t actual_val = resolve_value(val_str, scope);
 
-            uint32_t lit_width = 1;
-            if (const size_t tick_pos = val_str.find('\''); tick_pos != std::string::npos)
-                lit_width = std::stoi(val_str.substr(0, tick_pos));
+                if (!scope.nets.contains(slice.wire_name))
+                    throw std::runtime_error("Net not found in scope: '" + slice.wire_name + "'");
 
-            // Blast literals directly LSB -> MSB
-            for (uint32_t r = 0; r < rep_count; ++r) {
-                for (int b = 0; b < static_cast<int>(lit_width); ++b)
-                    target.push_back(((actual_val >> b) & 1ULL) ? NET_TRUE : NET_FALSE);
+                const NetID base_id = scope.nets.at(slice.wire_name);
+                uint16_t left = 0, right = 0;
+                const uint32_t total_w = scope.widths.at(slice.wire_name);
+
+                if (!slice.lsb.empty()) {
+                    left = resolve_value(slice.lsb, scope);
+                    right = slice.msb.empty() ? left : resolve_value(slice.msb, scope);
+                } else if (!slice.wire_dims.empty()) {
+                    left = resolve_value(slice.wire_dims[0], scope);
+                    right = left;
+                } else {
+                    left = 0;
+                    right = total_w - 1;
+                }
+
+                uint32_t w = std::abs(static_cast<int>(left) - static_cast<int>(right)) + 1;
+                uint16_t min_idx = std::min(left, right);
+                NetID slice_net = base_id;
+
+                if (left > right) { // Reverse slice
+                    std::vector<NetID> rev_parts;
+                    std::vector<uint32_t> rev_widths(w, 1);
+                    for (int b = left; b >= right; --b) {
+                        NetID bit_net = graph.add_net(1);
+                        graph.add_node(PrimitiveType::SLICE, {base_id}, {bit_net}, {static_cast<uint32_t>(b), static_cast<uint32_t>(b)}, "SLICE_BIT");
+                        rev_parts.push_back(bit_net);
+                    }
+                    slice_net = graph.add_net(w);
+                    graph.add_node(PrimitiveType::CONCAT, rev_parts, {slice_net}, rev_widths, "CONCAT_REV");
+                } else if (w != total_w || min_idx != 0) {
+                    slice_net = graph.add_net(w);
+                    graph.add_node(PrimitiveType::SLICE, {base_id}, {slice_net}, {min_idx, min_idx}, "SLICE");
+                }
+
+                for (uint32_t r = 0; r < rep_count; ++r) { parts.push_back(slice_net); part_widths.push_back(w); }
+            } else {
+                const auto &[val_str, rep_str] = std::get<Literal>(it);
+                const uint32_t rep_count = resolve_value(rep_str, scope);
+                const uint64_t actual_val = resolve_value(val_str, scope);
+
+                uint32_t lit_width = 1;
+                if (const size_t tick_pos = val_str.find('\''); tick_pos != std::string::npos)
+                    lit_width = std::stoi(val_str.substr(0, tick_pos));
+
+                NetID lit_net = graph.add_net(lit_width);
+                uint32_t val_low = actual_val & 0xFFFFFFFF;
+                uint32_t val_high = (actual_val >> 32) & 0xFFFFFFFF;
+                graph.add_node(PrimitiveType::CONSTANT, {}, {lit_net}, {val_low, val_high}, "CONSTANT");
+
+                for (uint32_t r = 0; r < rep_count; ++r) { parts.push_back(lit_net); part_widths.push_back(lit_width); }
             }
         }
+
+        if (parts.empty()) return NET_FALSE;
+        if (parts.size() == 1) return parts[0];
+
+        // If the bundle contains multiple chunks, stitch them together via CONCAT
+        uint32_t total_concat_w = 0;
+        for (const uint32_t w : part_widths) total_concat_w += w;
+
+        NetID concat_net = graph.add_net(total_concat_w);
+        graph.add_node(PrimitiveType::CONCAT, parts, {concat_net}, part_widths, "CONCAT");
+        return concat_net;
     }
 
     static void resolve_blueprint_nets(const Blueprint &bp, Scope &scope, CompilerGraph &graph) {
@@ -202,20 +239,14 @@ class Builder {
                 throw std::runtime_error("Wire '" + wire_name + "' exceeds " + std::to_string(Constants::MAX_BUS_WIDTH) + "-bit maximum bus width limit (" + std::to_string(total_width) + ").");
 
             scope.widths[wire_name] = total_width;
-            scope.nets[wire_name] = graph.net_count; // Claim the base ID
-
-            for (uint32_t i = 0; i < total_width; ++i) graph.add_net();
+            scope.nets[wire_name] = graph.add_net(total_width);
         }
     }
 
-    static std::unordered_map<std::string, std::vector<NetID>> resolve_part_pins(
-        const std::unordered_map<std::string, Bundle> &pins, const Scope &scope, CompilerGraph &graph) {
-        std::unordered_map<std::string, std::vector<NetID>> resolved_pins;
+    static std::unordered_map<std::string, NetID> resolve_part_pins(const std::unordered_map<std::string, Bundle> &pins, const Scope &scope, CompilerGraph &graph) {
+        std::unordered_map<std::string, NetID> resolved_pins;
         for (const auto &[pin_name, bundle]: pins) {
-            if (!bundle.empty()) {
-                for (const auto & it : std::ranges::reverse_view(bundle))
-                    resolve_chunk(it, scope, graph, resolved_pins[pin_name]);
-            }
+            if (!bundle.empty()) resolved_pins[pin_name] = resolve_bundle(bundle, scope, graph);
         }
         return resolved_pins;
     }
@@ -227,23 +258,16 @@ class Builder {
             if (bundle.empty()) continue;
             if (!child_scope.nets.contains(pin_name)) throw std::runtime_error("Pin '" + pin_name + "' does not exist on subchip");
 
-            const NetID child_base = child_scope.nets.at(pin_name);
-            const uint32_t child_width = child_scope.widths.at(pin_name);
-
-            std::vector<NetID> child_nets;
-            for(uint32_t i = 0; i < child_width; ++i) child_nets.push_back(child_base + i);
-
-            std::vector<NetID> parent_nets;
-            for (const auto & it : std::ranges::reverse_view(bundle))
-                resolve_chunk(it, scope, graph, parent_nets);
+            const NetID child_net = child_scope.nets.at(pin_name);
+            const NetID parent_net = resolve_bundle(bundle, scope, graph);
 
             const bool is_input = std::ranges::find(part_bp.in_wires, pin_name) != part_bp.in_wires.end();
             const bool is_output = std::ranges::find(part_bp.out_wires, pin_name) != part_bp.out_wires.end();
 
             if (is_input)
-                graph.add_node(PrimitiveType::ROUTE, parent_nets, child_nets, {}, "__Assign", std::format("{}.__In_{}", part_path, pin_name));
+                graph.add_node(PrimitiveType::ROUTE, {parent_net}, {child_net}, {}, "__Assign", std::format("{}.__In_{}", part_path, pin_name));
             else if (is_output)
-                graph.add_node(PrimitiveType::ROUTE, child_nets, parent_nets, {}, "__Assign", std::format("{}.__Out_{}", part_path, pin_name));
+                graph.add_node(PrimitiveType::ROUTE, {child_net}, {parent_net}, {}, "__Assign", std::format("{}.__Out_{}", part_path, pin_name));
             else throw std::runtime_error("Pin '" + pin_name + "' is not declared as an IO port");
         }
     }
@@ -264,12 +288,8 @@ class Builder {
             // Handle implicit routing nodes (__Assign)
             if (internal_primitives.contains(type)) {
                 std::vector<NetID> inputs, outputs;
-                auto add_pin_to = [&](const std::string &pin_name, std::vector<NetID> &target) {
-                    if (resolved_pins.contains(pin_name))
-                        target.insert(target.end(), resolved_pins[pin_name].begin(), resolved_pins[pin_name].end());
-                };
-                add_pin_to("in", inputs);
-                add_pin_to("out", outputs);
+                if (resolved_pins.contains("in")) inputs.push_back(resolved_pins.at("in"));
+                if (resolved_pins.contains("out")) outputs.push_back(resolved_pins.at("out"));
                 graph.add_node(PrimitiveType::ROUTE, inputs, outputs, {}, type, part_path);
                 continue; // Skip to the next part
             }
@@ -304,10 +324,12 @@ class Builder {
                 // Helper to map resolved pins or pad unconnected ones with dummy nets
                 auto add_pin_padded = [&](const std::string &pin_name, std::vector<NetID> &target) {
                     if (resolved_pins.contains(pin_name)) {
-                        target.insert(target.end(), resolved_pins[pin_name].begin(), resolved_pins[pin_name].end());
+                        target.push_back(resolved_pins.at(pin_name));
                     } else {
                         const uint32_t w = get_pin_width(pin_name);
-                        for(uint32_t b = 0; b < w; ++b) target.push_back(graph.add_net());
+                        NetID dummy = graph.add_net(w);
+                        graph.add_node(PrimitiveType::CONSTANT, {}, {dummy}, {0, 0}, "CONSTANT");
+                        target.push_back(dummy);
                     }
                 };
 
@@ -401,14 +423,8 @@ public:
 
         // Export only top-level IOs so Transpiler can generate API hooks
         const Blueprint& bp = library.at(chip_name);
-        for (const std::string& io : bp.in_wires) {
-            const NetID base = scope.nets.at(io);
-            for(uint32_t i = 0; i < scope.widths.at(io); ++i) graph.io_mapping[io].push_back(base + i);
-        }
-        for (const std::string& io : bp.out_wires) {
-            const NetID base = scope.nets.at(io);
-            for(uint32_t i = 0; i < scope.widths.at(io); ++i) graph.io_mapping[io].push_back(base + i);
-        }
+        for (const std::string& io : bp.in_wires) graph.io_mapping[io] = scope.nets.at(io);
+        for (const std::string& io : bp.out_wires) graph.io_mapping[io] = scope.nets.at(io);
 
         graph.resolve_aliases();
         return graph;

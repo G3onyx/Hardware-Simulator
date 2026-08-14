@@ -13,17 +13,23 @@ vU[16], vV[16], vW[16], vX[16], vY[16], vZ[16],
 v0[16], v1[16], v2[16], v3[16], v4[16], v5[16], v6[16], v7[16], v8[16], v9[16],
 vSp[16], vEn[16], vBk[16], vEs[16],
 vMin[16], vEq[16], vLBr[16], vRBr[16], vSem[16], vApo[16], vCom[16], vPer[16], vSla[16],
+vTab[16], vBsla[16], vGrav[16],
 vUp[16], vDn[16], vLf[16], vRt[16],
+vHom[16], vEnd[16], vPgU[16], vPgD[16], vIns[16], vDel[16],
+vF1[16], vF2[16], vF3[16], vF4[16], vF5[16], vF6[16],
+vF7[16], vF8[16], vF9[16], vF10[16], vF11[16], vF12[16],
 
 o1[16], o2[16], o3[16], o4[16], o5[16], o6[16], o7[16], o8[16], o9[16], o10[16],
 o11[16], o12[16], o13[16], o14[16], o15[16], o16[16], o17[16], o18[16], o19[16], o20[16],
 o21[16], o22[16], o23[16], o24[16], o25[16], o26[16], o27[16], o28[16], o29[16], o30[16],
 o31[16], o32[16], o33[16], o34[16], o35[16], o36[16], o37[16], o38[16], o39[16], o40[16],
 o41[16], o42[16], o43[16], o44[16], o45[16], o46[16], o47[16], o48[16], o49[16], o50[16],
-o51[16], o52[16]
+o51[16], o52[16], o53[16], o54[16], o55[16], o56[16], o57[16], o58[16], o59[16], o60[16],
+o61[16], o62[16], o63[16], o64[16], o65[16], o66[16], o67[16], o68[16], o69[16], o70[16],
+o71[16], o72[16]
 
 PARTS
-// Bit isolation (compiles to branchless bitwise masking)
+// --- MUX STAGE ---
 Mux<16>(a=16'd0, b=SCAN_A, sel=low[KEY_A], out=vA)
 Mux<16>(a=16'd0, b=SCAN_B, sel=low[KEY_B], out=vB)
 Mux<16>(a=16'd0, b=SCAN_C, sel=low[KEY_C], out=vC)
@@ -76,13 +82,36 @@ Mux<16>(a=16'd0, b=SCAN_APOSTROPHE,    sel=low[KEY_APOSTROPHE],    out=vApo)
 Mux<16>(a=16'd0, b=SCAN_COMMA,         sel=low[KEY_COMMA],         out=vCom)
 Mux<16>(a=16'd0, b=SCAN_PERIOD,        sel=low[KEY_PERIOD],        out=vPer)
 Mux<16>(a=16'd0, b=SCAN_SLASH,         sel=low[KEY_SLASH],         out=vSla)
+Mux<16>(a=16'd0, b=SCAN_TAB,           sel=low[KEY_TAB],           out=vTab)
+Mux<16>(a=16'd0, b=SCAN_BACKSLASH,     sel=low[KEY_BACKSLASH],     out=vBsla)
+Mux<16>(a=16'd0, b=SCAN_GRAVE_ACCENT,  sel=low[KEY_GRAVE_ACCENT],  out=vGrav)
 
 Mux<16>(a=16'd0, b=SCAN_UP,    sel=high[KEY_UP],    out=vUp)
 Mux<16>(a=16'd0, b=SCAN_DOWN,  sel=high[KEY_DOWN],  out=vDn)
 Mux<16>(a=16'd0, b=SCAN_LEFT,  sel=high[KEY_LEFT],  out=vLf)
 Mux<16>(a=16'd0, b=SCAN_RIGHT, sel=high[KEY_RIGHT], out=vRt)
 
-// Reduction tree (compiles to parallel ALUs)
+Mux<16>(a=16'd0, b=SCAN_HOME,      sel=high[KEY_HOME],      out=vHom)
+Mux<16>(a=16'd0, b=SCAN_END,       sel=high[KEY_END],       out=vEnd)
+Mux<16>(a=16'd0, b=SCAN_PAGE_UP,   sel=high[KEY_PAGE_UP],   out=vPgU)
+Mux<16>(a=16'd0, b=SCAN_PAGE_DOWN, sel=high[KEY_PAGE_DOWN], out=vPgD)
+Mux<16>(a=16'd0, b=SCAN_INSERT,    sel=high[KEY_INSERT],    out=vIns)
+Mux<16>(a=16'd0, b=SCAN_DELETE,    sel=high[KEY_DELETE],    out=vDel)
+
+Mux<16>(a=16'd0, b=SCAN_F1,  sel=high[KEY_F1],  out=vF1)
+Mux<16>(a=16'd0, b=SCAN_F2,  sel=high[KEY_F2],  out=vF2)
+Mux<16>(a=16'd0, b=SCAN_F3,  sel=high[KEY_F3],  out=vF3)
+Mux<16>(a=16'd0, b=SCAN_F4,  sel=high[KEY_F4],  out=vF4)
+Mux<16>(a=16'd0, b=SCAN_F5,  sel=high[KEY_F5],  out=vF5)
+Mux<16>(a=16'd0, b=SCAN_F6,  sel=high[KEY_F6],  out=vF6)
+Mux<16>(a=16'd0, b=SCAN_F7,  sel=high[KEY_F7],  out=vF7)
+Mux<16>(a=16'd0, b=SCAN_F8,  sel=high[KEY_F8],  out=vF8)
+Mux<16>(a=16'd0, b=SCAN_F9,  sel=high[KEY_F9],  out=vF9)
+Mux<16>(a=16'd0, b=SCAN_F10, sel=high[KEY_F10], out=vF10)
+Mux<16>(a=16'd0, b=SCAN_F11, sel=high[KEY_F11], out=vF11)
+Mux<16>(a=16'd0, b=SCAN_F12, sel=high[KEY_F12], out=vF12)
+
+// --- OR REDUCTION TREE ---
 Or<16>(a=vA,  b=vB,  out=o1)
 Or<16>(a=o1,  b=vC,  out=o2)
 Or<16>(a=o2,  b=vD,  out=o3)
@@ -134,8 +163,31 @@ Or<16>(a=o44, b=vApo, out=o45)
 Or<16>(a=o45, b=vCom, out=o46)
 Or<16>(a=o46, b=vPer, out=o47)
 Or<16>(a=o47, b=vSla, out=o48)
+Or<16>(a=o48, b=vTab,  out=o49)
+Or<16>(a=o49, b=vBsla, out=o50)
+Or<16>(a=o50, b=vGrav, out=o51)
 
-Or<16>(a=o48, b=vUp, out=o49)
-Or<16>(a=o49, b=vDn, out=o50)
-Or<16>(a=o50, b=vLf, out=o51)
-Or<16>(a=o51, b=vRt, out=out)
+Or<16>(a=o51, b=vUp, out=o52)
+Or<16>(a=o52, b=vDn, out=o53)
+Or<16>(a=o53, b=vLf, out=o54)
+Or<16>(a=o54, b=vRt, out=o55)
+
+Or<16>(a=o55, b=vHom, out=o56)
+Or<16>(a=o56, b=vEnd, out=o57)
+Or<16>(a=o57, b=vPgU, out=o58)
+Or<16>(a=o58, b=vPgD, out=o59)
+Or<16>(a=o59, b=vIns, out=o60)
+Or<16>(a=o60, b=vDel, out=o61)
+
+Or<16>(a=o61, b=vF1,  out=o62)
+Or<16>(a=o62, b=vF2,  out=o63)
+Or<16>(a=o63, b=vF3,  out=o64)
+Or<16>(a=o64, b=vF4,  out=o65)
+Or<16>(a=o65, b=vF5,  out=o66)
+Or<16>(a=o66, b=vF6,  out=o67)
+Or<16>(a=o67, b=vF7,  out=o68)
+Or<16>(a=o68, b=vF8,  out=o69)
+Or<16>(a=o69, b=vF9,  out=o70)
+Or<16>(a=o70, b=vF10, out=o71)
+Or<16>(a=o71, b=vF11, out=o72)
+Or<16>(a=o72, b=vF12, out=out)

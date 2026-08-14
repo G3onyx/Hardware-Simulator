@@ -1,0 +1,10 @@
+Life.hack keyboard controls:
+
+0-9          Load prestored board (0 = logo board)
+Space        Compute Next Generation
+Enter        Free-run until another key pressed
+Arrows/WASD  Move editing cursor up/down/right/left
+E            Toggle current cell
+DEL          Clear board
+< or ,       Save board in temp buffer (2 levels)
+> or .       Restore board from temp buffer (2 levels)

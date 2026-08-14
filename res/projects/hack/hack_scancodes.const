@@ -53,9 +53,32 @@ SCAN_APOSTROPHE    = 16'd39;
 SCAN_COMMA         = 16'd44;
 SCAN_PERIOD        = 16'd46;
 SCAN_SLASH         = 16'd47;
+SCAN_TAB           = 16'd9;
+SCAN_BACKSLASH     = 16'd92;
+SCAN_GRAVE_ACCENT  = 16'd96;
 
-// Arrows
-SCAN_UP    = 16'd131;
-SCAN_DOWN  = 16'd133;
-SCAN_LEFT  = 16'd130;
-SCAN_RIGHT = 16'd132;
+// Navigation and Edit
+SCAN_LEFT      = 16'd130;
+SCAN_UP        = 16'd131;
+SCAN_RIGHT     = 16'd132;
+SCAN_DOWN      = 16'd133;
+SCAN_HOME      = 16'd134;
+SCAN_END       = 16'd135;
+SCAN_PAGE_UP   = 16'd136;
+SCAN_PAGE_DOWN = 16'd137;
+SCAN_INSERT    = 16'd138;
+SCAN_DELETE    = 16'd139;
+
+// F-Keys
+SCAN_F1  = 16'd141;
+SCAN_F2  = 16'd142;
+SCAN_F3  = 16'd143;
+SCAN_F4  = 16'd144;
+SCAN_F5  = 16'd145;
+SCAN_F6  = 16'd146;
+SCAN_F7  = 16'd147;
+SCAN_F8  = 16'd148;
+SCAN_F9  = 16'd149;
+SCAN_F10 = 16'd150;
+SCAN_F11 = 16'd151;
+SCAN_F12 = 16'd152;
