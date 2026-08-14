@@ -1,0 +1,6 @@
+CHIP ROM <ADDR_SIZE, DATA_SIZE>
+
+@primitive
+
+IN address[ADDR_SIZE]
+OUT out[DATA_SIZE]

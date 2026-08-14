@@ -1,0 +1,79 @@
+CHIP CPU
+
+IN 
+instruction[16]  // Instruction to execute.
+inM[16]          // Value of Mem[A], the instruction’s M input
+reset            // Signals whether to continue (0) or restart (1)
+
+OUT
+outM[16]        // Value to write to Mem[addressM], the instruction’s M output
+writeM          // Write to the Memory?
+addressM[15]    // In which address to write?
+pc[15]          // address of next instruction
+
+WIRES
+isA, isC
+destA, loadA, loadD
+aIn[16], aOut[16]
+aluX[16], aluY[16], aluOut[16]
+pcOut[16]
+zr, ng, pos, ngOrZr
+jlt, jeq, jgt, jle, jumpCond, jump
+
+PARTS
+
+// Instruction decoding
+isC = instruction[15]
+Not<1>(in=isC, out=isA)
+
+
+// Destination bits
+And<1>(a=isC, b=instruction[5], out=destA)
+Or<1>(a=isA, b=destA, out=loadA)
+
+And<1>(a=isC, b=instruction[4], out=loadD)
+
+And<1>(a=isC, b=instruction[3], out=writeM)
+
+
+// Registers and routing
+
+Mux<16>(a=aluOut, b=instruction, sel=isA, out=aIn)
+
+Register(in=aIn, load=loadA, out=aOut) @ARegister
+
+Register(in=aluOut, load=loadD, out=aluX) @DRegister
+addressM = aOut[0:14]
+
+Mux<16>(a=aOut, b=inM, sel=instruction[12], out=aluY)
+
+
+// ALU
+ALU(
+    x=aluX, y=aluY,
+    zx=instruction[11], nx=instruction[10]
+    zy=instruction[9], ny=instruction[8]
+    f=instruction[7], no=instruction[6]
+    out=aluOut
+    zr=zr, ng=ng
+)
+outM = aluOut
+
+
+// Jump logic
+
+Or<1>(a=ng, b=zr, out=ngOrZr)
+Not<1>(in=ngOrZr, out=pos)
+
+And<1>(a=instruction[2], b=ng, out=jlt) // JLT
+And<1>(a=instruction[1], b=zr, out=jeq) // JEQ
+And<1>(a=instruction[0], b=pos, out=jgt) // JGT
+
+Or<1>(a=jlt, b=jeq, out=jle)
+Or<1>(a=jle, b=jgt, out=jumpCond)
+And<1>(a=isC, b=jumpCond, out=jump)
+
+
+// Program counter
+PC(in=aOut, inc=1'b1, load=jump, reset=reset, out=pcOut) @PC
+pc = pcOut[0:14]

@@ -1,0 +1,30 @@
+CHIP Computer
+
+@toplevel
+
+IN reset
+
+WIRES
+instruction[16]
+memoryOut[16]
+outM[16]
+addressM[15]
+writeM
+pc[15]
+
+PARTS
+
+CPU(
+    instruction=instruction
+    inM=memoryOut
+    reset=reset
+    outM=outM
+    writeM=writeM
+    addressM=addressM
+    pc=pc
+)
+
+// RAM + Screen + Keyboard
+Memory(in=outM, address=addressM, load=writeM, out=memoryOut)
+
+ROM<15, 16>(address=pc, out=instruction) @ROM32K

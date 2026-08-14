@@ -1,0 +1,39 @@
+CHIP Memory
+
+IN in[16], address[15], load
+OUT out[16]
+
+WIRES
+loadRAM, loadIO, loadScreen
+ramOut[16], screenOut[16], keyboardOut[16], ioOut[16]
+low_keys[64], high_keys[64]
+
+
+PARTS
+
+// Input routing
+DMux<1>(in=load, sel=address[14], a=loadRAM, b=loadIO)
+DMux<1>(in=loadIO, sel=address[13], a=loadScreen, b=_)
+
+// RAM
+RAM<14, 16>(in=in, address=address[0:13], load=loadRAM, out=ramOut) @RAM16K
+
+// Screen
+RAM<13, 16>(in=in, address=address[0:12], load=loadScreen, out=screenOut)
+Screen<512, 256>(
+    x = {7'b0, address[0:4], 4'b0}
+    y = {8'b0, address[5:12]}
+    data = {48'b0, in}
+    span = 8'd16
+    fg = 32'xFF_00_00_00 // Black
+    bg = 32'xFF_FF_FF_FF // White
+    draw = loadScreen
+)
+
+// Keyboard
+Keyboard(low_keys=low_keys, high_keys=high_keys)
+HackKeyEncoder(low=low_keys, high=high_keys, out=keyboardOut)
+
+// Output routing
+Mux<16>(a=screenOut, b=keyboardOut, sel=address[13], out=ioOut)
+Mux<16>(a=ramOut, b=ioOut, sel=address[14], out=out)

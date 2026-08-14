@@ -1,0 +1,7 @@
+CHIP Keyboard
+
+@peripheral
+
+OUT
+low_keys[64], high_keys[64]
+

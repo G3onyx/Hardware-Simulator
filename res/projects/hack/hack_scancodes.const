@@ -1,0 +1,61 @@
+// Letters A-Z
+SCAN_A = 16'd65;
+SCAN_B = 16'd66;
+SCAN_C = 16'd67;
+SCAN_D = 16'd68;
+SCAN_E = 16'd69;
+SCAN_F = 16'd70;
+SCAN_G = 16'd71;
+SCAN_H = 16'd72;
+SCAN_I = 16'd73;
+SCAN_J = 16'd74;
+SCAN_K = 16'd75;
+SCAN_L = 16'd76;
+SCAN_M = 16'd77;
+SCAN_N = 16'd78;
+SCAN_O = 16'd79;
+SCAN_P = 16'd80;
+SCAN_Q = 16'd81;
+SCAN_R = 16'd82;
+SCAN_S = 16'd83;
+SCAN_T = 16'd84;
+SCAN_U = 16'd85;
+SCAN_V = 16'd86;
+SCAN_W = 16'd87;
+SCAN_X = 16'd88;
+SCAN_Y = 16'd89;
+SCAN_Z = 16'd90;
+
+// Numbers 0-9
+SCAN_0 = 16'd48;
+SCAN_1 = 16'd49;
+SCAN_2 = 16'd50;
+SCAN_3 = 16'd51;
+SCAN_4 = 16'd52;
+SCAN_5 = 16'd53;
+SCAN_6 = 16'd54;
+SCAN_7 = 16'd55;
+SCAN_8 = 16'd56;
+SCAN_9 = 16'd57;
+
+// Specials
+SCAN_SPACE     = 16'd32;
+SCAN_ENTER     = 16'd128;
+SCAN_BACKSPACE = 16'd129;
+SCAN_ESCAPE    = 16'd140;
+
+SCAN_MINUS         = 16'd45;
+SCAN_EQUAL         = 16'd61;
+SCAN_LEFT_BRACKET  = 16'd91;
+SCAN_RIGHT_BRACKET = 16'd93;
+SCAN_SEMICOLON     = 16'd59;
+SCAN_APOSTROPHE    = 16'd39;
+SCAN_COMMA         = 16'd44;
+SCAN_PERIOD        = 16'd46;
+SCAN_SLASH         = 16'd47;
+
+// Arrows
+SCAN_UP    = 16'd131;
+SCAN_DOWN  = 16'd133;
+SCAN_LEFT  = 16'd130;
+SCAN_RIGHT = 16'd132;

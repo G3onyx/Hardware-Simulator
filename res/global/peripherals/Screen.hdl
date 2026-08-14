@@ -1,0 +1,10 @@
+CHIP Screen<WIDTH, HEIGHT>
+
+@peripheral
+
+IN
+x[16], y[16],
+data[64],
+span[8],
+fg[32], bg[32],
+draw

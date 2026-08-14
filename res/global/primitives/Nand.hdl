@@ -1,0 +1,6 @@
+CHIP Nand <WIDTH>
+
+@primitive
+
+IN a[WIDTH], b[WIDTH]
+OUT out[WIDTH]

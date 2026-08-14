@@ -1,0 +1,8 @@
+CHIP Print<SIZE>
+
+@peripheral
+
+IN
+data[SIZE]
+mode[2] // 0 = Char, 1 = Denary, 2 = Hex, 3 = Binary
+write   // Pulse high to execute the print using the active mode

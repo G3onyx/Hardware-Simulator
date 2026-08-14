@@ -1,0 +1,6 @@
+CHIP Dff <WIDTH>
+
+@primitive
+
+IN in[WIDTH]
+OUT out[WIDTH]

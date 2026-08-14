@@ -1,0 +1,6 @@
+CHIP RAM <ADDR_SIZE, DATA_SIZE>
+
+@primitive
+
+IN in[DATA_SIZE], address[ADDR_SIZE], load
+OUT out[DATA_SIZE]

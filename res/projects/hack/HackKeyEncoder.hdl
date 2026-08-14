@@ -1,0 +1,141 @@
+CHIP HackKeyEncoder
+
+@const(keys)
+@const(hack_scancodes)
+
+IN low[64], high[64]
+OUT out[16]
+
+WIRES
+vA[16], vB[16], vC[16], vD[16], vE[16], vF[16], vG[16], vH[16], vI[16], vJ[16],
+vK[16], vL[16], vM[16], vN[16], vO[16], vP[16], vQ[16], vR[16], vS[16], vT[16],
+vU[16], vV[16], vW[16], vX[16], vY[16], vZ[16],
+v0[16], v1[16], v2[16], v3[16], v4[16], v5[16], v6[16], v7[16], v8[16], v9[16],
+vSp[16], vEn[16], vBk[16], vEs[16],
+vMin[16], vEq[16], vLBr[16], vRBr[16], vSem[16], vApo[16], vCom[16], vPer[16], vSla[16],
+vUp[16], vDn[16], vLf[16], vRt[16],
+
+o1[16], o2[16], o3[16], o4[16], o5[16], o6[16], o7[16], o8[16], o9[16], o10[16],
+o11[16], o12[16], o13[16], o14[16], o15[16], o16[16], o17[16], o18[16], o19[16], o20[16],
+o21[16], o22[16], o23[16], o24[16], o25[16], o26[16], o27[16], o28[16], o29[16], o30[16],
+o31[16], o32[16], o33[16], o34[16], o35[16], o36[16], o37[16], o38[16], o39[16], o40[16],
+o41[16], o42[16], o43[16], o44[16], o45[16], o46[16], o47[16], o48[16], o49[16], o50[16],
+o51[16], o52[16]
+
+PARTS
+// Bit isolation (compiles to branchless bitwise masking)
+Mux<16>(a=16'd0, b=SCAN_A, sel=low[KEY_A], out=vA)
+Mux<16>(a=16'd0, b=SCAN_B, sel=low[KEY_B], out=vB)
+Mux<16>(a=16'd0, b=SCAN_C, sel=low[KEY_C], out=vC)
+Mux<16>(a=16'd0, b=SCAN_D, sel=low[KEY_D], out=vD)
+Mux<16>(a=16'd0, b=SCAN_E, sel=low[KEY_E], out=vE)
+Mux<16>(a=16'd0, b=SCAN_F, sel=low[KEY_F], out=vF)
+Mux<16>(a=16'd0, b=SCAN_G, sel=low[KEY_G], out=vG)
+Mux<16>(a=16'd0, b=SCAN_H, sel=low[KEY_H], out=vH)
+Mux<16>(a=16'd0, b=SCAN_I, sel=low[KEY_I], out=vI)
+Mux<16>(a=16'd0, b=SCAN_J, sel=low[KEY_J], out=vJ)
+Mux<16>(a=16'd0, b=SCAN_K, sel=low[KEY_K], out=vK)
+Mux<16>(a=16'd0, b=SCAN_L, sel=low[KEY_L], out=vL)
+Mux<16>(a=16'd0, b=SCAN_M, sel=low[KEY_M], out=vM)
+Mux<16>(a=16'd0, b=SCAN_N, sel=low[KEY_N], out=vN)
+Mux<16>(a=16'd0, b=SCAN_O, sel=low[KEY_O], out=vO)
+Mux<16>(a=16'd0, b=SCAN_P, sel=low[KEY_P], out=vP)
+Mux<16>(a=16'd0, b=SCAN_Q, sel=low[KEY_Q], out=vQ)
+Mux<16>(a=16'd0, b=SCAN_R, sel=low[KEY_R], out=vR)
+Mux<16>(a=16'd0, b=SCAN_S, sel=low[KEY_S], out=vS)
+Mux<16>(a=16'd0, b=SCAN_T, sel=low[KEY_T], out=vT)
+Mux<16>(a=16'd0, b=SCAN_U, sel=low[KEY_U], out=vU)
+Mux<16>(a=16'd0, b=SCAN_V, sel=low[KEY_V], out=vV)
+Mux<16>(a=16'd0, b=SCAN_W, sel=low[KEY_W], out=vW)
+Mux<16>(a=16'd0, b=SCAN_X, sel=low[KEY_X], out=vX)
+Mux<16>(a=16'd0, b=SCAN_Y, sel=low[KEY_Y], out=vY)
+Mux<16>(a=16'd0, b=SCAN_Z, sel=low[KEY_Z], out=vZ)
+
+Mux<16>(a=16'd0, b=SCAN_0, sel=low[KEY_0], out=v0)
+Mux<16>(a=16'd0, b=SCAN_1, sel=low[KEY_1], out=v1)
+Mux<16>(a=16'd0, b=SCAN_2, sel=low[KEY_2], out=v2)
+Mux<16>(a=16'd0, b=SCAN_3, sel=low[KEY_3], out=v3)
+Mux<16>(a=16'd0, b=SCAN_4, sel=low[KEY_4], out=v4)
+Mux<16>(a=16'd0, b=SCAN_5, sel=low[KEY_5], out=v5)
+Mux<16>(a=16'd0, b=SCAN_6, sel=low[KEY_6], out=v6)
+Mux<16>(a=16'd0, b=SCAN_7, sel=low[KEY_7], out=v7)
+Mux<16>(a=16'd0, b=SCAN_8, sel=low[KEY_8], out=v8)
+Mux<16>(a=16'd0, b=SCAN_9, sel=low[KEY_9], out=v9)
+
+Mux<16>(a=16'd0, b=SCAN_SPACE,     sel=low[KEY_SPACE],     out=vSp)
+Mux<16>(a=16'd0, b=SCAN_ENTER,     sel=low[KEY_ENTER],     out=vEn)
+Mux<16>(a=16'd0, b=SCAN_BACKSPACE, sel=low[KEY_BACKSPACE], out=vBk)
+Mux<16>(a=16'd0, b=SCAN_ESCAPE,    sel=low[KEY_ESCAPE],    out=vEs)
+
+Mux<16>(a=16'd0, b=SCAN_MINUS,         sel=low[KEY_MINUS],         out=vMin)
+Mux<16>(a=16'd0, b=SCAN_EQUAL,         sel=low[KEY_EQUAL],         out=vEq)
+Mux<16>(a=16'd0, b=SCAN_LEFT_BRACKET,  sel=low[KEY_LEFT_BRACKET],  out=vLBr)
+Mux<16>(a=16'd0, b=SCAN_RIGHT_BRACKET, sel=low[KEY_RIGHT_BRACKET], out=vRBr)
+Mux<16>(a=16'd0, b=SCAN_SEMICOLON,     sel=low[KEY_SEMICOLON],     out=vSem)
+Mux<16>(a=16'd0, b=SCAN_APOSTROPHE,    sel=low[KEY_APOSTROPHE],    out=vApo)
+Mux<16>(a=16'd0, b=SCAN_COMMA,         sel=low[KEY_COMMA],         out=vCom)
+Mux<16>(a=16'd0, b=SCAN_PERIOD,        sel=low[KEY_PERIOD],        out=vPer)
+Mux<16>(a=16'd0, b=SCAN_SLASH,         sel=low[KEY_SLASH],         out=vSla)
+
+Mux<16>(a=16'd0, b=SCAN_UP,    sel=high[KEY_UP],    out=vUp)
+Mux<16>(a=16'd0, b=SCAN_DOWN,  sel=high[KEY_DOWN],  out=vDn)
+Mux<16>(a=16'd0, b=SCAN_LEFT,  sel=high[KEY_LEFT],  out=vLf)
+Mux<16>(a=16'd0, b=SCAN_RIGHT, sel=high[KEY_RIGHT], out=vRt)
+
+// Reduction tree (compiles to parallel ALUs)
+Or<16>(a=vA,  b=vB,  out=o1)
+Or<16>(a=o1,  b=vC,  out=o2)
+Or<16>(a=o2,  b=vD,  out=o3)
+Or<16>(a=o3,  b=vE,  out=o4)
+Or<16>(a=o4,  b=vF,  out=o5)
+Or<16>(a=o5,  b=vG,  out=o6)
+Or<16>(a=o6,  b=vH,  out=o7)
+Or<16>(a=o7,  b=vI,  out=o8)
+Or<16>(a=o8,  b=vJ,  out=o9)
+Or<16>(a=o9,  b=vK,  out=o10)
+Or<16>(a=o10, b=vL,  out=o11)
+Or<16>(a=o11, b=vM,  out=o12)
+Or<16>(a=o12, b=vN,  out=o13)
+Or<16>(a=o13, b=vO,  out=o14)
+Or<16>(a=o14, b=vP,  out=o15)
+Or<16>(a=o15, b=vQ,  out=o16)
+Or<16>(a=o16, b=vR,  out=o17)
+Or<16>(a=o17, b=vS,  out=o18)
+Or<16>(a=o18, b=vT,  out=o19)
+Or<16>(a=o19, b=vU,  out=o20)
+Or<16>(a=o20, b=vV,  out=o21)
+Or<16>(a=o21, b=vW,  out=o22)
+Or<16>(a=o22, b=vX,  out=o23)
+Or<16>(a=o23, b=vY,  out=o24)
+Or<16>(a=o24, b=vZ,  out=o25)
+
+Or<16>(a=o25, b=v0,  out=o26)
+Or<16>(a=o26, b=v1,  out=o27)
+Or<16>(a=o27, b=v2,  out=o28)
+Or<16>(a=o28, b=v3,  out=o29)
+Or<16>(a=o29, b=v4,  out=o30)
+Or<16>(a=o30, b=v5,  out=o31)
+Or<16>(a=o31, b=v6,  out=o32)
+Or<16>(a=o32, b=v7,  out=o33)
+Or<16>(a=o33, b=v8,  out=o34)
+Or<16>(a=o34, b=v9,  out=o35)
+
+Or<16>(a=o35, b=vSp, out=o36)
+Or<16>(a=o36, b=vEn, out=o37)
+Or<16>(a=o37, b=vBk, out=o38)
+Or<16>(a=o38, b=vEs, out=o39)
+
+Or<16>(a=o39, b=vMin, out=o40)
+Or<16>(a=o40, b=vEq,  out=o41)
+Or<16>(a=o41, b=vLBr, out=o42)
+Or<16>(a=o42, b=vRBr, out=o43)
+Or<16>(a=o43, b=vSem, out=o44)
+Or<16>(a=o44, b=vApo, out=o45)
+Or<16>(a=o45, b=vCom, out=o46)
+Or<16>(a=o46, b=vPer, out=o47)
+Or<16>(a=o47, b=vSla, out=o48)
+
+Or<16>(a=o48, b=vUp, out=o49)
+Or<16>(a=o49, b=vDn, out=o50)
+Or<16>(a=o50, b=vLf, out=o51)
+Or<16>(a=o51, b=vRt, out=out)
