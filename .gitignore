@@ -49,8 +49,9 @@ desktop.ini
 !/antlr/HDL.g4
 
 /res/*
-!/res/global
-!/res/projects
+!/res/global/
+!/res/projects/
+!/res/cpp/
 !/res/cpp/.gitkeep
 
 /testing/tmp/*
