@@ -52,6 +52,7 @@ desktop.ini
 !/res/global/
 !/res/projects/
 !/res/cpp/
+/res/cpp/*
 !/res/cpp/.gitkeep
 
 /testing/tmp/*
