@@ -1,0 +1,50 @@
+// ==========================================
+// CHIP CONSTANTS: z80_regs.const
+// ==========================================
+
+// ------------------------------------------
+// 1. 16-bit Internal Register Routing
+// ------------------------------------------
+REG16_AF = 4'd0;
+REG16_BC = 4'd1;
+REG16_DE = 4'd2;
+REG16_HL = 4'd3;
+REG16_IX = 4'd4;
+REG16_IY = 4'd5;
+REG16_SP = 4'd6;
+REG16_PC = 4'd7;
+REG16_WZ = 4'd8; // Hidden Z80 Temp register (MEMPTR)
+REG16_IR = 4'd9; // Interrupt & Refresh Vector
+
+// ------------------------------------------
+// 2. 8-bit Octal Identifiers (IR[0:2] & IR[3:5])
+// ------------------------------------------
+OCT_B      = 3'd0;
+OCT_C      = 3'd1;
+OCT_D      = 3'd2;
+OCT_E      = 3'd3;
+OCT_H      = 3'd4;
+OCT_L      = 3'd5;
+OCT_HL_PTR = 3'd6; // Decodes as memory pointer (HL) instead of register
+OCT_A      = 3'd7;
+
+// ------------------------------------------
+// 3. 16-bit Pairs (p = IR[4:5])
+// ------------------------------------------
+PAIR_BC = 2'd0;
+PAIR_DE = 2'd1;
+PAIR_HL = 2'd2;
+PAIR_SP = 2'd3; // Used in ADD HL, SP and LD SP, nn
+PAIR_AF = 2'd3; // Automatically overrides SP for PUSH and POP
+
+// ------------------------------------------
+// 4. Condition Codes (y = IR[3:5])
+// ------------------------------------------
+COND_NZ = 3'd0; // Non-Zero flag
+COND_Z  = 3'd1; // Zero flag
+COND_NC = 3'd2; // No Carry flag
+COND_C  = 3'd3; // Carry flag
+COND_PO = 3'd4; // Parity Odd flag
+COND_PE = 3'd5; // Parity Even flag
+COND_P  = 3'd6; // Sign Positive flag
+COND_M  = 3'd7; // Sign Minus flag

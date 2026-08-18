@@ -3,12 +3,6 @@ CHIP Memory
 IN in[16], address[15], load
 OUT out[16]
 
-WIRES
-loadRAM, loadIO, loadScreen
-ramOut[16], screenOut[16], keyboardOut[16], ioOut[16]
-low_keys[64], high_keys[64]
-
-
 PARTS
 
 // Input routing

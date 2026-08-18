@@ -1,0 +1,89 @@
+// ==========================================
+// CHIP CONSTANTS: z80_opcodes.const
+// ==========================================
+
+// ------------------------------------------
+// 1. Core Instruction Blocks (x = IR[6:7])
+// ------------------------------------------
+BLOCK_CTRL = 2'b00; // Relative jumps, 16-bit math, load immediate
+BLOCK_LD8  = 2'b01; // 8-bit Load (LD r, r') and HALT
+BLOCK_ALU  = 2'b10; // 8-bit Math (ADD, SUB, AND, XOR, OR, CP)
+BLOCK_JMP  = 2'b11; // Absolute jumps, stack, I/O, CB/ED prefixes
+
+// ------------------------------------------
+// 2. Sub-Categories (z = IR[0:2])
+// ------------------------------------------
+Z_RET_C  = 3'd0; // Conditional Returns (RET)
+Z_LD_R16 = 3'd1; // 16-bit loads / 16-bit math / POP
+Z_JUMP_C = 3'd2; // Conditional Jumps (JP)
+Z_LD_R16_MEM = 3'd3; // 16-bit memory jumps
+Z_CALL_C = 3'd4; // Conditional Calls (CALL) / INC R8
+Z_PUSH   = 3'd5; // Push / DEC R8
+Z_LD_R8  = 3'd6; // 8-bit immediate loads / ALU immediate
+Z_RST    = 3'd7; // Restart calls (RST)
+
+// ------------------------------------------
+// 3. Instruction Prefixes
+// ------------------------------------------
+PRE_NONE = 8'x00;
+PRE_CB   = 8'xCB; // Bitwise & Shift operations
+PRE_DD   = 8'xDD; // IX Register substitutions
+PRE_ED   = 8'xED; // Extended operations (Block moves, extended IO)
+PRE_FD   = 8'xFD; // IY Register substitutions
+
+// ------------------------------------------
+// 4. Standalone Opcodes (Block 00 Overrides)
+// ------------------------------------------
+OP_NOP      = 8'x00;
+OP_EX_AF_AF = 8'x08; // EX AF, AF'
+OP_DJNZ     = 8'x10;
+OP_JR       = 8'x18;
+OP_JR_NZ    = 8'x20;
+OP_JR_Z     = 8'x28;
+OP_JR_NC    = 8'x30;
+OP_JR_C     = 8'x38;
+OP_RLCA     = 8'x07;
+OP_RRCA     = 8'x0F;
+OP_RLA      = 8'x17;
+OP_RRA      = 8'x1F;
+OP_DAA      = 8'x27;
+OP_CPL      = 8'x2F;
+OP_SCF      = 8'x37;
+OP_CCF      = 8'x3F;
+
+// ------------------------------------------
+// 5. Standalone Opcodes (Block 01 & 11)
+// ------------------------------------------
+OP_HALT     = 8'x76;
+OP_RET      = 8'xC9;
+OP_EXX      = 8'xD9;
+OP_JP       = 8'xC3;
+OP_CALL     = 8'xCD;
+OP_OUT_N_A  = 8'xD3;
+OP_IN_A_N   = 8'xDB;
+OP_EX_SP_HL = 8'xE3; // EX (SP), HL
+OP_EX_DE_HL = 8'xEB; // EX DE, HL
+OP_JP_HL    = 8'xE9; // JP (HL)
+OP_DI       = 8'xF3;
+OP_LD_SP_HL = 8'xF9;
+OP_EI       = 8'xFB;
+
+// ------------------------------------------
+// 6. Extended Block Instructions (ED Prefix)
+// ------------------------------------------
+ED_LDI  = 8'xA0;
+ED_CPI  = 8'xA1;
+ED_INI  = 8'xA2;
+ED_OUTI = 8'xA3;
+ED_LDD  = 8'xA8;
+ED_CPD  = 8'xA9;
+ED_IND  = 8'xAA;
+ED_OUTD = 8'xAB;
+ED_LDIR = 8'xB0;
+ED_CPIR = 8'xB1;
+ED_INIR = 8'xB2;
+ED_OTIR = 8'xB3;
+ED_LDDR = 8'xB8;
+ED_CPDR = 8'xB9;
+ED_INDR = 8'xBA;
+ED_OTDR = 8'xBB;

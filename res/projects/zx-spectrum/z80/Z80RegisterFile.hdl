@@ -1,0 +1,122 @@
+CHIP Z80RegisterFile
+
+IN
+    selA[4], selB[4], selWr[4], dataIn[16], we,
+    altAF, altEXX
+
+OUT
+    outA[16], outB[16]
+
+PARTS
+    // --- Write Enable Decoding ---
+    Eq<4>(a=selWr, b=4'd0, out=isWr0)
+    Eq<4>(a=selWr, b=4'd1, out=isWr1)
+    Eq<4>(a=selWr, b=4'd2, out=isWr2)
+    Eq<4>(a=selWr, b=4'd3, out=isWr3)
+    Eq<4>(a=selWr, b=4'd4, out=isWr4)
+    Eq<4>(a=selWr, b=4'd5, out=isWr5)
+    Eq<4>(a=selWr, b=4'd6, out=isWr6)
+    Eq<4>(a=selWr, b=4'd7, out=isWr7)
+    Eq<4>(a=selWr, b=4'd8, out=isWr8)
+    Eq<4>(a=selWr, b=4'd9, out=isWr9)
+
+    And<1>(a=isWr0, b=we, out=we0)
+    And<1>(a=isWr1, b=we, out=we1)
+    And<1>(a=isWr2, b=we, out=we2)
+    And<1>(a=isWr3, b=we, out=we3)
+    And<1>(a=isWr4, b=we, out=we4)
+    And<1>(a=isWr5, b=we, out=we5)
+    And<1>(a=isWr6, b=we, out=we6)
+    And<1>(a=isWr7, b=we, out=we7)
+    And<1>(a=isWr8, b=we, out=we8)
+    And<1>(a=isWr9, b=we, out=we9)
+
+    // --- Bank Switching & Load Targeting ---
+    Not<1>(in=altAF, out=notAltAF)
+    And<1>(a=we0, b=notAltAF, out=loadAF)
+    And<1>(a=we0, b=altAF, out=loadAF_alt)
+
+    Not<1>(in=altEXX, out=notAltEXX)
+    And<1>(a=we1, b=notAltEXX, out=loadBC)
+    And<1>(a=we1, b=altEXX, out=loadBC_alt)
+    And<1>(a=we2, b=notAltEXX, out=loadDE)
+    And<1>(a=we2, b=altEXX, out=loadDE_alt)
+    And<1>(a=we3, b=notAltEXX, out=loadHL)
+    And<1>(a=we3, b=altEXX, out=loadHL_alt)
+
+    loadIX = we4
+    loadIY = we5
+    loadSP = we6
+    loadPC = we7
+    loadWZ = we8
+    loadIR = we9
+
+    // --- D-Flip Flops for State ---
+    Mux<16>(a=outAF, b=dataIn, sel=loadAF, out=nextAF)
+    Dff<16>(in=nextAF, out=outAF)
+    Mux<16>(a=outAF_alt, b=dataIn, sel=loadAF_alt, out=nextAF_alt)
+    Dff<16>(in=nextAF_alt, out=outAF_alt)
+
+    Mux<16>(a=outBC, b=dataIn, sel=loadBC, out=nextBC)
+    Dff<16>(in=nextBC, out=outBC)
+    Mux<16>(a=outBC_alt, b=dataIn, sel=loadBC_alt, out=nextBC_alt)
+    Dff<16>(in=nextBC_alt, out=outBC_alt)
+
+    Mux<16>(a=outDE, b=dataIn, sel=loadDE, out=nextDE)
+    Dff<16>(in=nextDE, out=outDE)
+    Mux<16>(a=outDE_alt, b=dataIn, sel=loadDE_alt, out=nextDE_alt)
+    Dff<16>(in=nextDE_alt, out=outDE_alt)
+
+    Mux<16>(a=outHL, b=dataIn, sel=loadHL, out=nextHL)
+    Dff<16>(in=nextHL, out=outHL)
+    Mux<16>(a=outHL_alt, b=dataIn, sel=loadHL_alt, out=nextHL_alt)
+    Dff<16>(in=nextHL_alt, out=outHL_alt)
+
+    Mux<16>(a=outIX, b=dataIn, sel=loadIX, out=nextIX)
+    Dff<16>(in=nextIX, out=outIX)
+    Mux<16>(a=outIY, b=dataIn, sel=loadIY, out=nextIY)
+    Dff<16>(in=nextIY, out=outIY)
+    Mux<16>(a=outSP, b=dataIn, sel=loadSP, out=nextSP)
+    Dff<16>(in=nextSP, out=outSP)
+    Mux<16>(a=outPC, b=dataIn, sel=loadPC, out=nextPC)
+    Dff<16>(in=nextPC, out=outPC)
+    Mux<16>(a=outWZ, b=dataIn, sel=loadWZ, out=nextWZ)
+    Dff<16>(in=nextWZ, out=outWZ)
+    Mux<16>(a=outIR, b=dataIn, sel=loadIR, out=nextIR)
+    Dff<16>(in=nextIR, out=outIR)
+
+    // --- Output Bank Selection ---
+    Mux<16>(a=outAF, b=outAF_alt, sel=altAF, out=actAF)
+    Mux<16>(a=outBC, b=outBC_alt, sel=altEXX, out=actBC)
+    Mux<16>(a=outDE, b=outDE_alt, sel=altEXX, out=actDE)
+    Mux<16>(a=outHL, b=outHL_alt, sel=altEXX, out=actHL)
+
+    // --- Read Port A Multiplexing ---
+    Mux<16>(a=actAF, b=actBC, sel=selA[0], out=a_m0_0)
+    Mux<16>(a=actDE, b=actHL, sel=selA[0], out=a_m0_1)
+    Mux<16>(a=outIX, b=outIY, sel=selA[0], out=a_m0_2)
+    Mux<16>(a=outSP, b=outPC, sel=selA[0], out=a_m0_3)
+    Mux<16>(a=outWZ, b=outIR, sel=selA[0], out=a_m0_4)
+
+    Mux<16>(a=a_m0_0, b=a_m0_1, sel=selA[1], out=a_m1_0)
+    Mux<16>(a=a_m0_2, b=a_m0_3, sel=selA[1], out=a_m1_1)
+    Mux<16>(a=a_m0_4, b=16'd0,  sel=selA[1], out=a_m1_2)
+
+    Mux<16>(a=a_m1_0, b=a_m1_1, sel=selA[2], out=a_m2_0)
+
+    Mux<16>(a=a_m2_0, b=a_m1_2, sel=selA[3], out=outA)
+
+    // --- Read Port B Multiplexing ---
+    Mux<16>(a=actAF, b=actBC, sel=selB[0], out=b_m0_0)
+    Mux<16>(a=actDE, b=actHL, sel=selB[0], out=b_m0_1)
+    Mux<16>(a=outIX, b=outIY, sel=selB[0], out=b_m0_2)
+    Mux<16>(a=outSP, b=outPC, sel=selB[0], out=b_m0_3)
+    Mux<16>(a=outWZ, b=outIR, sel=selB[0], out=b_m0_4)
+
+    Mux<16>(a=b_m0_0, b=b_m0_1, sel=selB[1], out=b_m1_0)
+    Mux<16>(a=b_m0_2, b=b_m0_3, sel=selB[1], out=b_m1_1)
+    Mux<16>(a=b_m0_4, b=16'd0,  sel=selB[1], out=b_m1_2)
+
+    Mux<16>(a=b_m1_0, b=b_m1_1, sel=selB[2], out=b_m2_0)
+
+    Mux<16>(a=b_m2_0, b=b_m1_2, sel=selB[3], out=outB)

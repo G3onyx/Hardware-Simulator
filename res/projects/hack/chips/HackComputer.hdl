@@ -1,16 +1,8 @@
-CHIP Computer
+CHIP HackComputer
 
 @toplevel
 
 IN reset
-
-WIRES
-instruction[16]
-memoryOut[16]
-outM[16]
-addressM[15]
-writeM
-pc[15]
 
 PARTS
 

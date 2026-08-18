@@ -42,9 +42,8 @@ class HDLToBlueprint final : public HDLBaseVisitor {
         for (HDLParser::ScalarContext *idx_ctx: ctx->indices) {
             const std::string dim = idx_ctx->getText();
 
-            if (!isdigit(dim[0]) && !is_constant_or_generic(dim)) {
-                throw std::runtime_error("Invalid dimension size '" + dim + "' for wire '" + name + "'. Must be an integer, constant, or generic.");
-            }
+            if (!isdigit(dim[0]) && !is_constant_or_generic(dim))
+                throw std::runtime_error(std::format("Invalid dimension size '{}' for wire '{}'. Must be an integer, constant or generic.", dim, name));
             dims.push_back(dim);
         }
 
@@ -54,8 +53,8 @@ class HDLToBlueprint final : public HDLBaseVisitor {
     Slice make_slice(HDLParser::SliceContext *ctx, const std::string &rep_count = "1") const {
         const std::string wire_name = ctx->signal()->name->getText();
 
-        if (!bp.wires.contains(wire_name))
-            throw std::runtime_error("Error: Use of undeclared wire or unknown constant '" + wire_name + "'");
+        if (!bp.wires.contains(wire_name) && !bp.constants.contains(wire_name) && wire_name != "_")
+            bp.wires[wire_name] = Wire{wire_name, {}};
 
         std::vector<std::string> dims;
         for (HDLParser::ScalarContext *idx_ctx: ctx->signal()->indices)
@@ -184,14 +183,6 @@ public:
             Wire w = make_wire(sig_ctx);
             bp.wires[w.name] = w;
             bp.out_wires.push_back(w.name);
-        }
-        return nullptr;
-    }
-
-    antlrcpp::Any visitWiresSection(HDLParser::WiresSectionContext *ctx) override {
-        for (const HDLParser::SignalContext *sig_ctx: ctx->sigs) {
-            Wire w = make_wire(sig_ctx);
-            bp.wires[w.name] = w;
         }
         return nullptr;
     }

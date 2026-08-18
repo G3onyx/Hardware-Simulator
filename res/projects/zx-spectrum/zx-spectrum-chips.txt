@@ -1,0 +1,1164 @@
+// keys.const
+// LOW KEYS
+KEY_A = 0;
+KEY_B = 1;
+KEY_C = 2;
+KEY_D = 3;
+KEY_E = 4;
+KEY_F = 5;
+KEY_G = 6;
+KEY_H = 7;
+KEY_I = 8;
+KEY_J = 9;
+KEY_K = 10;
+KEY_L = 11;
+KEY_M = 12;
+KEY_N = 13;
+KEY_O = 14;
+KEY_P = 15;
+KEY_Q = 16;
+KEY_R = 17;
+KEY_S = 18;
+KEY_T = 19;
+KEY_U = 20;
+KEY_V = 21;
+KEY_W = 22;
+KEY_X = 23;
+KEY_Y = 24;
+KEY_Z = 25;
+
+KEY_0 = 26;
+KEY_1 = 27;
+KEY_2 = 28;
+KEY_3 = 29;
+KEY_4 = 30;
+KEY_5 = 31;
+KEY_6 = 32;
+KEY_7 = 33;
+KEY_8 = 34;
+KEY_9 = 35;
+
+KEY_SPACE = 36;
+KEY_ENTER = 37;
+KEY_BACKSPACE = 38;
+KEY_ESCAPE = 39;
+
+KEY_MINUS = 40;
+KEY_EQUAL = 41;
+KEY_LEFT_BRACKET = 42;
+KEY_RIGHT_BRACKET = 43;
+KEY_SEMICOLON = 44;
+KEY_APOSTROPHE = 45;
+KEY_COMMA = 46;
+KEY_PERIOD = 47;
+KEY_SLASH = 48;
+KEY_GRAVE_ACCENT = 49;
+KEY_BACKSLASH = 50;
+KEY_TAB = 51;
+
+// HIGH KEYS
+KEY_UP = 0;
+KEY_DOWN = 1;
+KEY_LEFT = 2;
+KEY_RIGHT = 3;
+
+KEY_LEFT_SHIFT = 4;
+KEY_RIGHT_SHIFT = 5;
+
+KEY_LEFT_CONTROL = 6;
+KEY_RIGHT_CONTROL = 7;
+
+KEY_LEFT_ALT = 8;
+KEY_RIGHT_ALT = 9;
+
+KEY_F1 = 10;
+KEY_F2 = 11;
+KEY_F3 = 12;
+KEY_F4 = 13;
+KEY_F5 = 14;
+KEY_F6 = 15;
+KEY_F7 = 16;
+KEY_F8 = 17;
+KEY_F9 = 18;
+KEY_F10 = 19;
+KEY_F11 = 20;
+KEY_F12 = 21;
+
+KEY_HOME = 22;
+KEY_END = 23;
+KEY_PAGE_UP = 24;
+KEY_PAGE_DOWN = 25;
+KEY_INSERT = 26;
+KEY_DELETE = 27;
+KEY_CAPS_LOCK = 28;
+KEY_PAUSE = 29;
+KEY_PRINT_SCREEN = 30;
+KEY_SCROLL_LOCK = 31;
+---
+
+// Audio.hdl
+CHIP Audio<RESOLUTION>
+
+@peripheral
+
+IN
+left[RESOLUTION]    // Instantaneous digital amplitude for the left channel
+right[RESOLUTION]   // Instantaneous digital amplitude for the right channel
+strobe              // 1 = Active/Sample. Tie to 1 for continuous DAC output.
+---
+
+// Keyboard.hdl
+CHIP Keyboard
+
+@peripheral
+
+OUT
+low_keys[64], high_keys[64]
+
+
+---
+
+// Print.hdl
+CHIP Print<SIZE>
+
+@peripheral
+
+IN
+data[SIZE]
+mode[2] // 0 = Char, 1 = Denary, 2 = Hex, 3 = Binary
+write   // Pulse high to execute the print using the active mode
+---
+
+// Screen.hdl
+CHIP Screen<WIDTH, HEIGHT>
+
+@peripheral
+
+IN
+x[16], y[16],
+data[64],
+span[8],
+fg[32], bg[32],
+draw
+---
+
+// Dff.hdl
+CHIP Dff <WIDTH>
+
+@primitive
+
+IN in[WIDTH]
+OUT out[WIDTH]
+---
+
+// Nand.hdl
+CHIP Nand <WIDTH>
+
+@primitive
+
+IN a[WIDTH], b[WIDTH]
+OUT out[WIDTH]
+---
+
+// RAM.hdl
+CHIP RAM <ADDR_SIZE, DATA_SIZE>
+
+@primitive
+
+IN in[DATA_SIZE], address[ADDR_SIZE], load
+OUT out[DATA_SIZE]
+---
+
+// ROM.hdl
+CHIP ROM <ADDR_SIZE, DATA_SIZE>
+
+@primitive
+
+IN address[ADDR_SIZE]
+OUT out[DATA_SIZE]
+---
+
+// Memory48K.hdl
+CHIP Memory48K
+
+IN
+    cpuAddr[16], cpuDataIn[8], mreq_n, rd_n, wr_n, ulaVramAddr[14]
+
+OUT
+    cpuDataOut[8], ulaVramData[8]
+
+PARTS
+    Not<1>(in=cpuAddr[15], out=not_A15)
+    Not<1>(in=cpuAddr[14], out=not_A14)
+    And<1>(a=not_A15, b=not_A14, out=isROM)
+    And<1>(a=not_A15, b=cpuAddr[14], out=isLowRAM)
+
+    Not<1>(in=mreq_n, out=mreq)
+    Not<1>(in=wr_n, out=wr)
+    And<1>(a=mreq, b=wr, out=memWrite)
+
+    And<1>(a=memWrite, b=isLowRAM, out=loadLowRAM)
+    And<1>(a=memWrite, b=cpuAddr[15], out=loadHighRAM)
+
+    // Yield address lines to the ULA if it's accessing the contended VRAM bank
+    And<1>(a=mreq, b=isLowRAM, out=cpuAccLow)
+    Mux<14>(a=ulaVramAddr, b=cpuAddr[0:13], sel=cpuAccLow, out=lowRamAddr)
+
+    ROM<14, 8>(address=cpuAddr[0:13], out=romData) @ROM48K
+    RAM<14, 8>(in=cpuDataIn, address=lowRamAddr, load=loadLowRAM, out=lowRamData)
+    RAM<15, 8>(in=cpuDataIn, address=cpuAddr[0:14], load=loadHighRAM, out=highRamData)
+
+    ulaVramData = lowRamData
+    Mux<8>(a=romData, b=lowRamData, sel=cpuAddr[14], out=lowHalfData)
+    Mux<8>(a=lowHalfData, b=highRamData, sel=cpuAddr[15], out=cpuDataOut)
+---
+
+// ULA48K.hdl
+CHIP ULA48K
+
+IN
+    cpuAddr[16], cpuData[8],
+    mreq_n, iorq_n, rd_n, wr_n,
+    kbRows[5], earIn, vramData[8]
+
+OUT
+    wait_n, int_n, vramAddr[14], ulaData[8],
+    micOut, speaker
+
+PARTS
+    // Raster Counters (224 T-States/line, 312 lines/frame)
+    Add<8>(a=xCount, b=8'd1, out=xPlus1)
+    Eq<8>(a=xCount, b=8'd223, out=xReset)
+    Mux<8>(a=xPlus1, b=8'd0, sel=xReset, out=nextX)
+    Dff<8>(in=nextX, out=xCount)
+
+    Add<9>(a=yCount, b=9'd1, out=yPlus1)
+    Eq<9>(a=yCount, b=9'd311, out=yReset)
+    And<1>(a=xReset, b=yReset, out=frameEnd)
+    Mux<9>(a=yCount, b=yPlus1, sel=xReset, out=yInc)
+    Mux<9>(a=yInc, b=9'd0, sel=frameEnd, out=nextY)
+    Dff<9>(in=nextY, out=yCount)
+
+    // Vertical Blank Interrupt (/INT)
+    Eq<9>(a=yCount, b=9'd0, out=isLine0)
+    Lt<8>(a=xCount, b=8'd32, out=isEarlyX)
+    And<1>(a=isLine0, b=isEarlyX, out=intActive)
+    Not<1>(in=intActive, out=int_n)
+
+    // I/O Port 0xFE Decoding
+    Not<1>(in=cpuAddr[0], out=isPortFE)
+    Not<1>(in=iorq_n, out=isIOReq)
+    Not<1>(in=wr_n, out=isWrite)
+    Not<1>(in=rd_n, out=isRead)
+    And<1>(a=isIOReq, b=isWrite, out=isIOWrite)
+    And<1>(a=isIOWrite, b=isPortFE, out=writeFE)
+
+    Mux<8>(a=portOutState, b=cpuData, sel=writeFE, out=nextPortOut)
+    Dff<8>(in=nextPortOut, out=portOutState)
+    micOut = portOutState[3]
+    speaker = portOutState[4]
+
+    And<1>(a=isIOReq, b=isRead, out=isIORead)
+    And<1>(a=isIORead, b=isPortFE, out=readFE)
+    ulaData = {3'b111, earIn, kbRows}
+
+    // Video Address Generation (Screen Rendering)
+    Lt<9>(a=yCount, b=9'd192, out=yActive)
+    Lt<8>(a=xCount, b=8'd128, out=xActive)
+    And<1>(a=yActive, b=xActive, out=isDrawing)
+
+    // Non-linear bitmap address interleaving logic unique to ZX Spectrum
+    vramAddr = {1'b0, yCount[6:7], yCount[0:2], yCount[3:5], xCount[2:6]}
+
+    Screen<256, 192>(
+        x = {8'd0, xCount[2:6], 3'b000}, y = {7'd0, yCount[0:8]},
+        data = {56'd0, vramData}, span = 8'd8,
+        fg = 32'xFF_FF_FF_FF, bg = 32'xFF_00_00_00, draw = isDrawing
+    )
+
+    // Precise Memory Contention Stalling
+    And<1>(a=xCount[1], b=xCount[2], out=isMod6or7)
+    Not<1>(in=isMod6or7, out=isStallPhase)
+    Not<1>(in=cpuAddr[15], out=notA15)
+    And<1>(a=notA15, b=cpuAddr[14], out=isContendedBank)
+    Not<1>(in=mreq_n, out=mreq)
+    And<1>(a=isContendedBank, b=mreq, out=cpuAccessingVRAM)
+
+    And<1>(a=isDrawing, b=cpuAccessingVRAM, out=contentionConflict)
+    And<1>(a=contentionConflict, b=isStallPhase, out=assertWait)
+    Not<1>(in=assertWait, out=wait_n)
+---
+
+// ULAKeyEncoder.hdl
+CHIP ULAKeyEncoder
+
+@const(keys)
+
+IN low[64], high[64], addr[8]
+OUT out[5]
+
+PARTS
+    Not<1>(in=low[KEY_V], out=r0_4)
+    Not<1>(in=low[KEY_C], out=r0_3)
+    Not<1>(in=low[KEY_X], out=r0_2)
+    Not<1>(in=low[KEY_Z], out=r0_1)
+    Not<1>(in=high[KEY_LEFT_SHIFT], out=r0_0)
+
+    Not<1>(in=low[KEY_G], out=r1_4)
+    Not<1>(in=low[KEY_F], out=r1_3)
+    Not<1>(in=low[KEY_D], out=r1_2)
+    Not<1>(in=low[KEY_S], out=r1_1)
+    Not<1>(in=low[KEY_A], out=r1_0)
+
+    Not<1>(in=low[KEY_T], out=r2_4)
+    Not<1>(in=low[KEY_R], out=r2_3)
+    Not<1>(in=low[KEY_E], out=r2_2)
+    Not<1>(in=low[KEY_W], out=r2_1)
+    Not<1>(in=low[KEY_Q], out=r2_0)
+
+    Not<1>(in=low[KEY_5], out=r3_4)
+    Not<1>(in=low[KEY_4], out=r3_3)
+    Not<1>(in=low[KEY_3], out=r3_2)
+    Not<1>(in=low[KEY_2], out=r3_1)
+    Not<1>(in=low[KEY_1], out=r3_0)
+
+    Not<1>(in=low[KEY_6], out=r4_4)
+    Not<1>(in=low[KEY_7], out=r4_3)
+    Not<1>(in=low[KEY_8], out=r4_2)
+    Not<1>(in=low[KEY_9], out=r4_1)
+    Not<1>(in=low[KEY_0], out=r4_0)
+
+    Not<1>(in=low[KEY_Y], out=r5_4)
+    Not<1>(in=low[KEY_U], out=r5_3)
+    Not<1>(in=low[KEY_I], out=r5_2)
+    Not<1>(in=low[KEY_O], out=r5_1)
+    Not<1>(in=low[KEY_P], out=r5_0)
+
+    Not<1>(in=low[KEY_H], out=r6_4)
+    Not<1>(in=low[KEY_J], out=r6_3)
+    Not<1>(in=low[KEY_K], out=r6_2)
+    Not<1>(in=low[KEY_L], out=r6_1)
+    Not<1>(in=low[KEY_ENTER], out=r6_0)
+
+    Not<1>(in=low[KEY_B], out=r7_4)
+    Not<1>(in=low[KEY_N], out=r7_3)
+    Not<1>(in=low[KEY_M], out=r7_2)
+    Not<1>(in=high[KEY_LEFT_CONTROL], out=r7_1)
+    Not<1>(in=low[KEY_SPACE], out=r7_0)
+
+    // Using CONCAT braces {} dynamically resolves to a valid 5-bit bus net
+    Mux<5>(a={r0_4, r0_3, r0_2, r0_1, r0_0}, b=5'b11111, sel=addr[0], out=act0)
+    Mux<5>(a={r1_4, r1_3, r1_2, r1_1, r1_0}, b=5'b11111, sel=addr[1], out=act1)
+    Mux<5>(a={r2_4, r2_3, r2_2, r2_1, r2_0}, b=5'b11111, sel=addr[2], out=act2)
+    Mux<5>(a={r3_4, r3_3, r3_2, r3_1, r3_0}, b=5'b11111, sel=addr[3], out=act3)
+    Mux<5>(a={r4_4, r4_3, r4_2, r4_1, r4_0}, b=5'b11111, sel=addr[4], out=act4)
+    Mux<5>(a={r5_4, r5_3, r5_2, r5_1, r5_0}, b=5'b11111, sel=addr[5], out=act5)
+    Mux<5>(a={r6_4, r6_3, r6_2, r6_1, r6_0}, b=5'b11111, sel=addr[6], out=act6)
+    Mux<5>(a={r7_4, r7_3, r7_2, r7_1, r7_0}, b=5'b11111, sel=addr[7], out=act7)
+
+    And<5>(a=act0, b=act1, out=and01)
+    And<5>(a=act2, b=act3, out=and23)
+    And<5>(a=act4, b=act5, out=and45)
+    And<5>(a=act6, b=act7, out=and67)
+    And<5>(a=and01, b=and23, out=and0123)
+    And<5>(a=and45, b=and67, out=and4567)
+    And<5>(a=and0123, b=and4567, out=out)
+---
+
+// ZXSpectrum.hdl
+CHIP ZXSpectrum
+
+@toplevel(3500000)
+
+IN
+    reset,
+    ear_in  // Cassette audio input
+
+PARTS
+    Not<1>(in=reset, out=reset_n)
+    Not<1>(in=iorq_n, out=not_iorq)
+    Not<1>(in=rd_n, out=not_rd)
+    And<1>(a=not_iorq, b=not_rd, out=io_read)
+    Mux<8>(a=memDataOut, b=ulaDataOut, sel=io_read, out=cpuDataIn)
+
+    // Initialise mapped CPU
+    Z80(
+        reset_n = reset_n, wait_n = wait_n, int_n = int_n, nmi_n = 1'b1, busrq_n = 1'b1,
+        din = cpuDataIn, dout = cpuDataOut, addr = cpuAddr,
+        mreq_n = mreq_n, iorq_n = iorq_n, rd_n = rd_n, wr_n = wr_n,
+        m1_n = m1_n, rfsh_n = rfsh_n
+    )
+
+    // Initialise Key Inputs
+    Keyboard(low_keys=low_keys, high_keys=high_keys)
+    ULAKeyEncoder(
+        low = low_keys, high = high_keys,
+        addr = cpuAddr[8:15], out = kbRows
+    )
+
+    // Custom ULA
+    ULA48K(
+        cpuAddr = cpuAddr, cpuData = cpuDataOut,
+        mreq_n = mreq_n, iorq_n = iorq_n, rd_n = rd_n, wr_n = wr_n,
+        kbRows = kbRows, earIn = ear_in, vramData = ulaVramData,
+        wait_n = wait_n, int_n = int_n, vramAddr = ulaVramAddr,
+        ulaData = ulaDataOut, micOut = mic_wire, speaker = speaker_wire
+    )
+
+    // Audio mixing
+    Or<1>(a=speaker_wire, b=mic_wire, out=mixed_audio)
+    Audio<1>(left = mixed_audio, right = mixed_audio, strobe = 1'b1)
+
+    // Custom Memory mapping and contention handler
+    Memory48K(
+        cpuAddr = cpuAddr, cpuDataIn = cpuDataOut,
+        mreq_n = mreq_n, rd_n = rd_n, wr_n = wr_n,
+        ulaVramAddr = ulaVramAddr, cpuDataOut = memDataOut,
+        ulaVramData = ulaVramData
+    )
+---
+
+// z80_alu.const
+// ==========================================
+// CHIP CONSTANTS: z80_alu.const
+// ==========================================
+
+// ------------------------------------------
+// 1. 8-Bit ALU Math (Matches 'y' field exactly)
+// ------------------------------------------
+ALU_ADD = 4'd0;
+ALU_ADC = 4'd1; // Add with Carry
+ALU_SUB = 4'd2;
+ALU_SBC = 4'd3; // Subtract with Carry
+ALU_AND = 4'd4;
+ALU_XOR = 4'd5;
+ALU_OR  = 4'd6;
+ALU_CP  = 4'd7; // Compare (Subtract without persisting result)
+
+// ------------------------------------------
+// 2. Shift and Rotate (Prefix CB)
+// ------------------------------------------
+ALU_RLC = 4'd8;  // Rotate Left Circular
+ALU_RRC = 4'd9;  // Rotate Right Circular
+ALU_RL  = 4'd10; // Rotate Left through Carry
+ALU_RR  = 4'd11; // Rotate Right through Carry
+ALU_SLA = 4'd12; // Shift Left Arithmetic
+ALU_SRA = 4'd13; // Shift Right Arithmetic
+ALU_SLL = 4'd14; // Shift Left Logical (Undocumented Z80 quirk)
+ALU_SRL = 4'd15; // Shift Right Logical
+
+// ------------------------------------------
+// 3. Bitwise Evaluation Limits
+// ------------------------------------------
+BIT_TEST  = 2'b01; // CB prefix, x=1
+BIT_RESET = 2'b10; // CB prefix, x=2
+BIT_SET   = 2'b11; // CB prefix, x=3
+---
+
+// z80_opcodes.const
+// ==========================================
+// CHIP CONSTANTS: z80_opcodes.const
+// ==========================================
+
+// ------------------------------------------
+// 1. Core Instruction Blocks (x = IR[6:7])
+// ------------------------------------------
+BLOCK_CTRL = 2'b00; // Relative jumps, 16-bit math, load immediate
+BLOCK_LD8  = 2'b01; // 8-bit Load (LD r, r') and HALT
+BLOCK_ALU  = 2'b10; // 8-bit Math (ADD, SUB, AND, XOR, OR, CP)
+BLOCK_JMP  = 2'b11; // Absolute jumps, stack, I/O, CB/ED prefixes
+
+// ------------------------------------------
+// 2. Sub-Categories (z = IR[0:2])
+// ------------------------------------------
+Z_RET_C  = 3'd0; // Conditional Returns (RET)
+Z_LD_R16 = 3'd1; // 16-bit loads / 16-bit math / POP
+Z_JUMP_C = 3'd2; // Conditional Jumps (JP)
+Z_LD_R16_MEM = 3'd3; // 16-bit memory jumps
+Z_CALL_C = 3'd4; // Conditional Calls (CALL) / INC R8
+Z_PUSH   = 3'd5; // Push / DEC R8
+Z_LD_R8  = 3'd6; // 8-bit immediate loads / ALU immediate
+Z_RST    = 3'd7; // Restart calls (RST)
+
+// ------------------------------------------
+// 3. Instruction Prefixes
+// ------------------------------------------
+PRE_NONE = 8'x00;
+PRE_CB   = 8'xCB; // Bitwise & Shift operations
+PRE_DD   = 8'xDD; // IX Register substitutions
+PRE_ED   = 8'xED; // Extended operations (Block moves, extended IO)
+PRE_FD   = 8'xFD; // IY Register substitutions
+
+// ------------------------------------------
+// 4. Standalone Opcodes (Block 00 Overrides)
+// ------------------------------------------
+OP_NOP      = 8'x00;
+OP_EX_AF_AF = 8'x08; // EX AF, AF'
+OP_DJNZ     = 8'x10;
+OP_JR       = 8'x18;
+OP_JR_NZ    = 8'x20;
+OP_JR_Z     = 8'x28;
+OP_JR_NC    = 8'x30;
+OP_JR_C     = 8'x38;
+OP_RLCA     = 8'x07;
+OP_RRCA     = 8'x0F;
+OP_RLA      = 8'x17;
+OP_RRA      = 8'x1F;
+OP_DAA      = 8'x27;
+OP_CPL      = 8'x2F;
+OP_SCF      = 8'x37;
+OP_CCF      = 8'x3F;
+
+// ------------------------------------------
+// 5. Standalone Opcodes (Block 01 & 11)
+// ------------------------------------------
+OP_HALT     = 8'x76;
+OP_RET      = 8'xC9;
+OP_EXX      = 8'xD9;
+OP_JP       = 8'xC3;
+OP_CALL     = 8'xCD;
+OP_OUT_N_A  = 8'xD3;
+OP_IN_A_N   = 8'xDB;
+OP_EX_SP_HL = 8'xE3; // EX (SP), HL
+OP_EX_DE_HL = 8'xEB; // EX DE, HL
+OP_JP_HL    = 8'xE9; // JP (HL)
+OP_DI       = 8'xF3;
+OP_LD_SP_HL = 8'xF9;
+OP_EI       = 8'xFB;
+
+// ------------------------------------------
+// 6. Extended Block Instructions (ED Prefix)
+// ------------------------------------------
+ED_LDI  = 8'xA0;
+ED_CPI  = 8'xA1;
+ED_INI  = 8'xA2;
+ED_OUTI = 8'xA3;
+ED_LDD  = 8'xA8;
+ED_CPD  = 8'xA9;
+ED_IND  = 8'xAA;
+ED_OUTD = 8'xAB;
+ED_LDIR = 8'xB0;
+ED_CPIR = 8'xB1;
+ED_INIR = 8'xB2;
+ED_OTIR = 8'xB3;
+ED_LDDR = 8'xB8;
+ED_CPDR = 8'xB9;
+ED_INDR = 8'xBA;
+ED_OTDR = 8'xBB;
+---
+
+// z80_regs.const
+// ==========================================
+// CHIP CONSTANTS: z80_regs.const
+// ==========================================
+
+// ------------------------------------------
+// 1. 16-bit Internal Register Routing
+// ------------------------------------------
+REG16_AF = 4'd0;
+REG16_BC = 4'd1;
+REG16_DE = 4'd2;
+REG16_HL = 4'd3;
+REG16_IX = 4'd4;
+REG16_IY = 4'd5;
+REG16_SP = 4'd6;
+REG16_PC = 4'd7;
+REG16_WZ = 4'd8; // Hidden Z80 Temp register (MEMPTR)
+REG16_IR = 4'd9; // Interrupt & Refresh Vector
+
+// ------------------------------------------
+// 2. 8-bit Octal Identifiers (IR[0:2] & IR[3:5])
+// ------------------------------------------
+OCT_B      = 3'd0;
+OCT_C      = 3'd1;
+OCT_D      = 3'd2;
+OCT_E      = 3'd3;
+OCT_H      = 3'd4;
+OCT_L      = 3'd5;
+OCT_HL_PTR = 3'd6; // Decodes as memory pointer (HL) instead of register
+OCT_A      = 3'd7;
+
+// ------------------------------------------
+// 3. 16-bit Pairs (p = IR[4:5])
+// ------------------------------------------
+PAIR_BC = 2'd0;
+PAIR_DE = 2'd1;
+PAIR_HL = 2'd2;
+PAIR_SP = 2'd3; // Used in ADD HL, SP and LD SP, nn
+PAIR_AF = 2'd3; // Automatically overrides SP for PUSH and POP
+
+// ------------------------------------------
+// 4. Condition Codes (y = IR[3:5])
+// ------------------------------------------
+COND_NZ = 3'd0; // Non-Zero flag
+COND_Z  = 3'd1; // Zero flag
+COND_NC = 3'd2; // No Carry flag
+COND_C  = 3'd3; // Carry flag
+COND_PO = 3'd4; // Parity Odd flag
+COND_PE = 3'd5; // Parity Even flag
+COND_P  = 3'd6; // Sign Positive flag
+COND_M  = 3'd7; // Sign Minus flag
+---
+
+// zx_sys.const
+// ==========================================
+// CHIP CONSTANTS: zx_sys.const
+// ==========================================
+
+// ------------------------------------------
+// 1. Standard Memory Map Thresholds
+// ------------------------------------------
+ROM_START    = 16'x0000;
+VRAM_START   = 16'x4000;
+ATTRIB_START = 16'x5800; // Target for 32x24 color attribute grid
+RAM_START    = 16'x5B00; // General purpose RAM
+
+// ------------------------------------------
+// 2. ULA Standard Palette (32-bit ARGB mapping)
+// ------------------------------------------
+COLOR_BLACK   = 32'xFF_00_00_00;
+COLOR_BLUE    = 32'xFF_00_00_D7;
+COLOR_RED     = 32'xFF_D7_00_00;
+COLOR_MAGENTA = 32'xFF_D7_00_D7;
+COLOR_GREEN   = 32'xFF_00_D7_00;
+COLOR_CYAN    = 32'xFF_00_D7_D7;
+COLOR_YELLOW  = 32'xFF_D7_D7_00;
+COLOR_WHITE   = 32'xFF_D7_D7_D7;
+
+// ------------------------------------------
+// 3. ULA Bright Palette (Attribute Bit 6 = 1)
+// ------------------------------------------
+COLOR_BRIGHT_BLACK   = 32'xFF_00_00_00;
+COLOR_BRIGHT_BLUE    = 32'xFF_00_00_FF;
+COLOR_BRIGHT_RED     = 32'xFF_FF_00_00;
+COLOR_BRIGHT_MAGENTA = 32'xFF_FF_00_FF;
+COLOR_BRIGHT_GREEN   = 32'xFF_00_FF_00;
+COLOR_BRIGHT_CYAN    = 32'xFF_00_FF_FF;
+COLOR_BRIGHT_YELLOW  = 32'xFF_FF_FF_00;
+COLOR_BRIGHT_WHITE   = 32'xFF_FF_FF_FF;
+---
+
+// Z80.hdl
+CHIP Z80
+
+IN
+    reset_n, wait_n, int_n, nmi_n, busrq_n, din[8]
+
+OUT
+    dout[8], addr[16],
+    mreq_n, iorq_n, rd_n, wr_n, m1_n, rfsh_n
+
+PARTS
+    // Core timing and instruction sequencer
+    Z80Sequencer(
+        reset_n = reset_n, wait_n = wait_n, int_n = int_n, din = din,
+        regA = regA, regB = regB, aluOut = aluOut, aluFlags = aluFlags,
+        dout = dout, addr = addr, mreq_n = mreq_n, iorq_n = iorq_n,
+        rd_n = rd_n, wr_n = wr_n, m1_n = m1_n, rfsh_n = rfsh_n,
+        regSelA = regSelA, regSelB = regSelB, regWriteSel = regWriteSel,
+        regWe = regWe, altAF = altAF, altEXX = altEXX, aluOp = aluOp,
+        regWriteData = regWriteData, aluSrc = aluSrc
+    )
+
+    // CPU Register state storage
+    Z80RegisterFile(
+        selA = regSelA, selB = regSelB, selWr = regWriteSel,
+        dataIn = regWriteData, we = regWe, altAF = altAF, altEXX = altEXX,
+        outA = regA, outB = regB
+    )
+
+    // Arithmetic and Logic Unit
+    Z80ALU(
+        a = regA[0:7], b = aluSrc, flagsIn = regA[8:15],
+        op = aluOp, out = aluOut, flagsOut = aluFlags
+    )
+---
+
+// Z80ALU.hdl
+CHIP Z80ALU
+
+IN
+    a[8], b[8], flagsIn[8], op[4]
+
+OUT
+    out[8], flagsOut[8]
+
+PARTS
+    // Carry evaluation
+    And<1>(a=op[0], b=flagsIn[0], out=useCarry)
+
+    // 9-Bit Math for Carry Out
+    Add<9>(a={1'b0, a}, b={1'b0, b}, out=addBase)
+    Add<9>(a=addBase, b={8'd0, useCarry}, out=add9)
+    Sub<9>(a={1'b0, a}, b={1'b0, b}, out=subBase)
+    Sub<9>(a=subBase, b={8'd0, useCarry}, out=sub9)
+
+    // Logical Operations
+    And<8>(a=a, b=b, out=and8)
+    Xor<8>(a=a, b=b, out=xor8)
+    Or<8>(a=a, b=b, out=or8)
+
+    // Operation Multiplexing
+    Mux<8>(a=add9[0:7], b=sub9[0:7], sel=op[1], out=mathOut)
+    Mux<8>(a=and8, b=xor8, sel=op[0], out=logicOut1)
+    Mux<8>(a=logicOut1, b=or8, sel=op[1], out=logicOut2)
+    Mux<8>(a=mathOut, b=logicOut2, sel=op[2], out=aluResult)
+    out = aluResult
+
+    // Standard Flags (Sign, Zero, Y/X Undocumented flags)
+    flagS = aluResult[7]
+    Eq<8>(a=aluResult, b=8'd0, out=flagZ)
+    flagY = aluResult[5]
+    flagX = aluResult[3]
+
+    // Half-Carry Computation (bits 0-3)
+    Add<5>(a={1'b0, a[0:3]}, b={1'b0, b[0:3]}, out=hAddBase)
+    Add<5>(a=hAddBase, b={4'd0, useCarry}, out=halfAdd)
+    Sub<5>(a={1'b0, a[0:3]}, b={1'b0, b[0:3]}, out=hSubBase)
+    Sub<5>(a=hSubBase, b={4'd0, useCarry}, out=halfSub)
+    Mux<1>(a=halfAdd[4], b=halfSub[4], sel=op[1], out=mathH)
+
+    Not<1>(in=op[0], out=notOp0)
+    Not<1>(in=op[1], out=notOp1)
+    And<1>(a=notOp0, b=notOp1, out=isAndOp)
+    Mux<1>(a=1'b0, b=1'b1, sel=isAndOp, out=logicH)
+    Mux<1>(a=mathH, b=logicH, sel=op[2], out=flagH)
+
+    // Parity Calculation
+    Xor<1>(a=aluResult[0], b=aluResult[1], out=p1)
+    Xor<1>(a=aluResult[2], b=aluResult[3], out=p2)
+    Xor<1>(a=aluResult[4], b=aluResult[5], out=p3)
+    Xor<1>(a=aluResult[6], b=aluResult[7], out=p4)
+    Xor<1>(a=p1, b=p2, out=p5)
+    Xor<1>(a=p3, b=p4, out=p6)
+    Xor<1>(a=p5, b=p6, out=oddParity)
+    Not<1>(in=oddParity, out=evenParity)
+
+    // Overflow Validation
+    Xor<1>(a=a[7], b=b[7], out=diffSigns)
+    Not<1>(in=diffSigns, out=sameSigns)
+    Xor<1>(a=a[7], b=aluResult[7], out=changedSign)
+    And<1>(a=sameSigns, b=changedSign, out=addOv)
+    And<1>(a=diffSigns, b=changedSign, out=subOv)
+    Mux<1>(a=addOv, b=subOv, sel=op[1], out=mathOv)
+    Mux<1>(a=mathOv, b=evenParity, sel=op[2], out=flagPV)
+
+    // Add/Subtract & Carry flags
+    Not<1>(in=op[2], out=notOp2)
+    And<1>(a=op[1], b=notOp2, out=flagN)
+    Mux<1>(a=add9[8], b=sub9[8], sel=op[1], out=mathC)
+    Mux<1>(a=mathC, b=1'b0, sel=op[2], out=flagC)
+
+    // Output Packing
+    flagsOut = {flagS, flagZ, flagY, flagH, flagX, flagPV, flagN, flagC}
+---
+
+// Z80Decoder.hdl
+CHIP Z80Decoder
+
+@const(z80_opcodes)
+@const(z80_alu)
+
+IN IR[8], prefix[8]
+
+OUT
+    isPrefix, isLoad8, isLoad8Imm, isALU8, isALUImm, isLoad16Imm, isPushPop, isMemWrite, isJump,
+    aluOp[4], reqM2_Read, reqM3_Read, reqM2_Write, isIORead, isIOWrite, isExx, isExAF,
+    isCondJump, is16BitMath, isWriteToMem
+
+PARTS
+    opX = IR[6:7]
+    opY = IR[3:5]
+    opZ = IR[0:2]
+    opQ = IR[3]
+
+    // Prefix detection
+    Eq<8>(a=IR, b=PRE_CB, out=isCB)
+    Eq<8>(a=IR, b=PRE_DD, out=isDD)
+    Eq<8>(a=IR, b=PRE_ED, out=isED)
+    Eq<8>(a=IR, b=PRE_FD, out=isFD)
+    Or<1>(a=isCB, b=isDD, out=p1)
+    Or<1>(a=isED, b=isFD, out=p2)
+    Or<1>(a=p1, b=p2, out=isPrefix)
+
+    // Load instructions
+    Eq<2>(a=opX, b=BLOCK_LD8, out=isLoad8Block)
+    Eq<8>(a=IR, b=OP_HALT, out=isHalt)
+    Not<1>(in=isHalt, out=notHalt)
+    And<1>(a=isLoad8Block, b=notHalt, out=isLoad8)
+    Eq<3>(a=opZ, b=3'd6, out=isZ6)
+    And<1>(a=isLoad8Block, b=isZ6, out=isImmLD)
+    Not<1>(in=isImmLD, out=notImmLD)
+    And<1>(a=isLoad8Block, b=notImmLD, out=isPureLoad8)
+
+    // ALU Decoding
+    Eq<2>(a=opX, b=BLOCK_ALU, out=isALUBlock)
+    And<1>(a=isALUBlock, b=notImmLD, out=isALU8)
+    Mux<4>(a=ALU_ADD, b={1'b0, opY}, sel=isALU8, out=aluOp)
+
+    // Control & Jumping
+    Eq<2>(a=opX, b=BLOCK_JMP, out=isJmpBlock)
+    And<1>(a=isJmpBlock, b=isZ6, out=isImmALU)
+    Eq<2>(a=opX, b=BLOCK_CTRL, out=isCtrlBlock)
+    Eq<3>(a=opZ, b=3'd1, out=isZ1)
+    Not<1>(in=opQ, out=notQ)
+    And<1>(a=isCtrlBlock, b=isZ1, out=ld16a)
+    And<1>(a=ld16a, b=notQ, out=isLoad16Imm)
+
+    // Stack Operations
+    Eq<3>(a=opZ, b=3'd5, out=isZ5)
+    And<1>(a=isJmpBlock, b=isZ5, out=isPush)
+    And<1>(a=isJmpBlock, b=isZ1, out=pop1)
+    And<1>(a=pop1, b=opQ, out=isPop)
+    Or<1>(a=isPush, b=isPop, out=isPushPop)
+
+    // Memory writes
+    And<1>(a=isLoad8Block, b=isZ6, out=isMemW1)
+    Eq<8>(a=IR, b=8'x32, out=isMemW2)
+    Or<1>(a=isMemW1, b=isMemW2, out=isMemWrite)
+    isWriteToMem = isMemWrite
+
+    // Jumps and Subroutines
+    Eq<8>(a=IR, b=8'xC3, out=isJP)
+    Eq<8>(a=IR, b=8'xCD, out=isCALL)
+    Eq<8>(a=IR, b=8'xC9, out=isRET)
+    Or<1>(a=isJP, b=isCALL, out=jmpOrCall)
+    Or<1>(a=jmpOrCall, b=isRET, out=isJump)
+
+    // State Fetching Needs
+    Or<1>(a=isImmLD, b=isImmALU, out=needs1ByteImm)
+    Or<1>(a=needs1ByteImm, b=isPush, out=reqM2_Read)
+    Or<1>(a=isLoad16Imm, b=isJP, out=needs2ByteImm)
+    Or<1>(a=needs2ByteImm, b=isCALL, out=reqM3_Read)
+    reqM2_Write = isMemWrite
+
+    // I/O & Exchange
+    Eq<8>(a=IR, b=8'xDB, out=isDB)
+    Eq<8>(a=IR, b=8'xD3, out=isD3)
+    Eq<3>(a=opZ, b=3'd0, out=isZ0)
+    And<1>(a=isED, b=isZ0, out=isED_Z0)
+    And<1>(a=isED, b=isZ1, out=isED_Z1)
+    Or<1>(a=isDB, b=isED_Z0, out=isIORead)
+    Or<1>(a=isD3, b=isED_Z1, out=isIOWrite)
+
+    Eq<8>(a=IR, b=8'x08, out=is08)
+    Eq<8>(a=IR, b=8'xD9, out=isD9)
+    isExAF = is08
+    isExx  = isD9
+
+    // Condition Codes
+    Eq<3>(a=opZ, b=3'd2, out=isZ2)
+    Eq<3>(a=opZ, b=3'd4, out=isZ4)
+    Or<1>(a=isZ2, b=isZ4, out=isJmpCallCond)
+    Or<1>(a=isJmpCallCond, b=isZ0, out=isAnyCond)
+    And<1>(a=isCtrlBlock, b=isAnyCond, out=isCondJump)
+
+    // Extended Math
+    Eq<2>(a=opX, b=2'b00, out=is00)
+    And<1>(a=is00, b=isZ1, out=addHL_base)
+    And<1>(a=addHL_base, b=opQ, out=is16BitMath)
+---
+
+// Z80OctalMapper.hdl
+CHIP Z80OctalMapper
+
+@const(z80_regs)
+@const(z80_opcodes)
+
+IN octal[3], prefix[8]
+OUT reg16[4], isHigh, isMemory
+
+PARTS
+    Not<1>(in=octal[0], out=isHigh)
+    Eq<3>(a=octal, b=OCT_HL_PTR, out=isMemTarget)
+    isMemory = isMemTarget
+    Add<4>(a={2'b0, octal[1:2]}, b=4'd1, out=baseReg)
+
+    // Detect if the base register is HL (REG16_HL / 3)
+    Eq<4>(a=baseReg, b=REG16_HL, out=isHLBase)
+
+    // Prefix Overrides (IX/IY substitutions)
+    Eq<8>(a=prefix, b=PRE_DD, out=isDD)
+    Eq<8>(a=prefix, b=PRE_FD, out=isFD)
+    And<1>(a=isHLBase, b=isDD, out=overrideIX)
+    And<1>(a=isHLBase, b=isFD, out=overrideIY)
+
+    // Route the override
+    Mux<4>(a=baseReg, b=REG16_IX, sel=overrideIX, out=regWithIX)
+    Mux<4>(a=regWithIX, b=REG16_IY, sel=overrideIY, out=regWithPrefix)
+    Eq<3>(a=octal, b=OCT_A, out=isA)
+    Mux<4>(a=regWithPrefix, b=REG16_AF, sel=isA, out=reg16)
+---
+
+// Z80RegisterFile.hdl
+CHIP Z80RegisterFile
+
+IN
+    selA[4], selB[4], selWr[4], dataIn[16], we,
+    altAF, altEXX
+
+OUT
+    outA[16], outB[16]
+
+PARTS
+    // --- Write Enable Decoding ---
+    Eq<4>(a=selWr, b=4'd0, out=isWr0)
+    Eq<4>(a=selWr, b=4'd1, out=isWr1)
+    Eq<4>(a=selWr, b=4'd2, out=isWr2)
+    Eq<4>(a=selWr, b=4'd3, out=isWr3)
+    Eq<4>(a=selWr, b=4'd4, out=isWr4)
+    Eq<4>(a=selWr, b=4'd5, out=isWr5)
+    Eq<4>(a=selWr, b=4'd6, out=isWr6)
+    Eq<4>(a=selWr, b=4'd7, out=isWr7)
+    Eq<4>(a=selWr, b=4'd8, out=isWr8)
+    Eq<4>(a=selWr, b=4'd9, out=isWr9)
+
+    And<1>(a=isWr0, b=we, out=we0)
+    And<1>(a=isWr1, b=we, out=we1)
+    And<1>(a=isWr2, b=we, out=we2)
+    And<1>(a=isWr3, b=we, out=we3)
+    And<1>(a=isWr4, b=we, out=we4)
+    And<1>(a=isWr5, b=we, out=we5)
+    And<1>(a=isWr6, b=we, out=we6)
+    And<1>(a=isWr7, b=we, out=we7)
+    And<1>(a=isWr8, b=we, out=we8)
+    And<1>(a=isWr9, b=we, out=we9)
+
+    // --- Bank Switching & Load Targeting ---
+    Not<1>(in=altAF, out=notAltAF)
+    And<1>(a=we0, b=notAltAF, out=loadAF)
+    And<1>(a=we0, b=altAF, out=loadAF_alt)
+
+    Not<1>(in=altEXX, out=notAltEXX)
+    And<1>(a=we1, b=notAltEXX, out=loadBC)
+    And<1>(a=we1, b=altEXX, out=loadBC_alt)
+    And<1>(a=we2, b=notAltEXX, out=loadDE)
+    And<1>(a=we2, b=altEXX, out=loadDE_alt)
+    And<1>(a=we3, b=notAltEXX, out=loadHL)
+    And<1>(a=we3, b=altEXX, out=loadHL_alt)
+
+    loadIX = we4
+    loadIY = we5
+    loadSP = we6
+    loadPC = we7
+    loadWZ = we8
+    loadIR = we9
+
+    // --- D-Flip Flops for State ---
+    Mux<16>(a=outAF, b=dataIn, sel=loadAF, out=nextAF)
+    Dff<16>(in=nextAF, out=outAF)
+    Mux<16>(a=outAF_alt, b=dataIn, sel=loadAF_alt, out=nextAF_alt)
+    Dff<16>(in=nextAF_alt, out=outAF_alt)
+
+    Mux<16>(a=outBC, b=dataIn, sel=loadBC, out=nextBC)
+    Dff<16>(in=nextBC, out=outBC)
+    Mux<16>(a=outBC_alt, b=dataIn, sel=loadBC_alt, out=nextBC_alt)
+    Dff<16>(in=nextBC_alt, out=outBC_alt)
+
+    Mux<16>(a=outDE, b=dataIn, sel=loadDE, out=nextDE)
+    Dff<16>(in=nextDE, out=outDE)
+    Mux<16>(a=outDE_alt, b=dataIn, sel=loadDE_alt, out=nextDE_alt)
+    Dff<16>(in=nextDE_alt, out=outDE_alt)
+
+    Mux<16>(a=outHL, b=dataIn, sel=loadHL, out=nextHL)
+    Dff<16>(in=nextHL, out=outHL)
+    Mux<16>(a=outHL_alt, b=dataIn, sel=loadHL_alt, out=nextHL_alt)
+    Dff<16>(in=nextHL_alt, out=outHL_alt)
+
+    Mux<16>(a=outIX, b=dataIn, sel=loadIX, out=nextIX)
+    Dff<16>(in=nextIX, out=outIX)
+    Mux<16>(a=outIY, b=dataIn, sel=loadIY, out=nextIY)
+    Dff<16>(in=nextIY, out=outIY)
+    Mux<16>(a=outSP, b=dataIn, sel=loadSP, out=nextSP)
+    Dff<16>(in=nextSP, out=outSP)
+    Mux<16>(a=outPC, b=dataIn, sel=loadPC, out=nextPC)
+    Dff<16>(in=nextPC, out=outPC)
+    Mux<16>(a=outWZ, b=dataIn, sel=loadWZ, out=nextWZ)
+    Dff<16>(in=nextWZ, out=outWZ)
+    Mux<16>(a=outIR, b=dataIn, sel=loadIR, out=nextIR)
+    Dff<16>(in=nextIR, out=outIR)
+
+    // --- Output Bank Selection ---
+    Mux<16>(a=outAF, b=outAF_alt, sel=altAF, out=actAF)
+    Mux<16>(a=outBC, b=outBC_alt, sel=altEXX, out=actBC)
+    Mux<16>(a=outDE, b=outDE_alt, sel=altEXX, out=actDE)
+    Mux<16>(a=outHL, b=outHL_alt, sel=altEXX, out=actHL)
+
+    // --- Read Port A Multiplexing ---
+    Mux<16>(a=actAF, b=actBC, sel=selA[0], out=a_m0_0)
+    Mux<16>(a=actDE, b=actHL, sel=selA[0], out=a_m0_1)
+    Mux<16>(a=outIX, b=outIY, sel=selA[0], out=a_m0_2)
+    Mux<16>(a=outSP, b=outPC, sel=selA[0], out=a_m0_3)
+    Mux<16>(a=outWZ, b=outIR, sel=selA[0], out=a_m0_4)
+
+    Mux<16>(a=a_m0_0, b=a_m0_1, sel=selA[1], out=a_m1_0)
+    Mux<16>(a=a_m0_2, b=a_m0_3, sel=selA[1], out=a_m1_1)
+    Mux<16>(a=a_m0_4, b=16'd0,  sel=selA[1], out=a_m1_2)
+
+    Mux<16>(a=a_m1_0, b=a_m1_1, sel=selA[2], out=a_m2_0)
+
+    Mux<16>(a=a_m2_0, b=a_m1_2, sel=selA[3], out=outA)
+
+    // --- Read Port B Multiplexing ---
+    Mux<16>(a=actAF, b=actBC, sel=selB[0], out=b_m0_0)
+    Mux<16>(a=actDE, b=actHL, sel=selB[0], out=b_m0_1)
+    Mux<16>(a=outIX, b=outIY, sel=selB[0], out=b_m0_2)
+    Mux<16>(a=outSP, b=outPC, sel=selB[0], out=b_m0_3)
+    Mux<16>(a=outWZ, b=outIR, sel=selB[0], out=b_m0_4)
+
+    Mux<16>(a=b_m0_0, b=b_m0_1, sel=selB[1], out=b_m1_0)
+    Mux<16>(a=b_m0_2, b=b_m0_3, sel=selB[1], out=b_m1_1)
+    Mux<16>(a=b_m0_4, b=16'd0,  sel=selB[1], out=b_m1_2)
+
+    Mux<16>(a=b_m1_0, b=b_m1_1, sel=selB[2], out=b_m2_0)
+
+    Mux<16>(a=b_m2_0, b=b_m1_2, sel=selB[3], out=outB)
+---
+
+// Z80Sequencer.hdl
+CHIP Z80Sequencer
+
+@const(z80_opcodes)
+@const(z80_regs)
+
+IN
+    reset_n, wait_n, int_n, din[8],
+    regA[16], regB[16],
+    aluOut[8], aluFlags[8]
+
+OUT
+    dout[8], addr[16],
+    mreq_n, iorq_n, rd_n, wr_n, m1_n, rfsh_n,
+    regSelA[4], regSelB[4], regWriteSel[4],
+    regWe, altAF, altEXX, aluOp[4], regWriteData[16],
+    aluSrc[8]
+
+PARTS
+    Z80Decoder(
+        IR=IR, prefix=PR, isPrefix=isPrefix, isLoad8=isLoad8, isLoad8Imm=isLoad8Imm,
+        isALU8=isALU8, isALUImm=isALUImm, isLoad16Imm=isLoad16Imm,
+        isPushPop=isPushPop, isMemWrite=isMemWrite, isJump=isJump,
+        aluOp=aluOp, reqM2_Read=reqM2_Read, reqM3_Read=reqM3_Read,
+        reqM2_Write=reqM2_Write, isIORead=isIORead, isIOWrite=isIOWrite,
+        isExx=isExx, isExAF=isExAF
+    )
+
+    Mux<8>(a=PR, b=IR, sel=isPrefix, out=nextPR)
+    Dff<8>(in=nextPR, out=PR)
+
+    Eq<3>(a=tState, b=3'd1, out=isT1)
+    Eq<3>(a=tState, b=3'd2, out=isT2)
+    Eq<3>(a=tState, b=3'd3, out=isT3)
+    Eq<3>(a=tState, b=3'd4, out=isT4)
+
+    Eq<3>(a=mCycle, b=3'd1, out=isM1)
+    Eq<3>(a=mCycle, b=3'd2, out=isM2)
+    Eq<3>(a=mCycle, b=3'd3, out=isM3)
+
+    And<1>(a=isM1, b=isT4, out=endM1)
+    And<1>(a=isM2, b=isT4, out=endM2_cycle)
+    And<1>(a=isM3, b=isT4, out=endM3_cycle)
+
+    Or<1>(a=endM1, b=endM2_cycle, out=endM_12)
+    Or<1>(a=endM_12, b=endM3_cycle, out=wrapT)
+
+    Not<1>(in=reqM2_Read, out=noM2)
+    Not<1>(in=reqM3_Read, out=noM3)
+    And<1>(a=endM1, b=noM2, out=endSimple)
+    And<1>(a=endM2_cycle, b=noM3, out=endAtM2)
+    Or<1>(a=endSimple, b=endAtM2, out=endOrM2)
+    Or<1>(a=endOrM2, b=endM3_cycle, out=endOrM3)
+    Or<1>(a=endOrM3, b=isPrefix, out=endInstruction)
+
+    Not<1>(in=wait_n, out=isWait)
+    Add<3>(a=tState, b=3'd1, out=tPlus1)
+    Mux<3>(a=tPlus1, b=3'd1, sel=wrapT, out=tNextNorm)
+    Mux<3>(a=tNextNorm, b=tState, sel=isWait, out=nextT)
+    Dff<3>(in=nextT, out=tState)
+
+    Add<3>(a=mCycle, b=3'd1, out=mPlus1)
+    Mux<3>(a=mCycle, b=mPlus1, sel=wrapT, out=nextM_adv)
+    Mux<3>(a=nextM_adv, b=3'd1, sel=endInstruction, out=nextM)
+    Dff<3>(in=nextM, out=mCycle)
+
+    Not<1>(in=int_n, out=intActive)
+    And<1>(a=endInstruction, b=intActive, out=nextIntState)
+    Dff<1>(in=nextIntState, out=intTriggered)
+    And<1>(a=isM1, b=isT3, out=grabIR)
+    Mux<8>(a=din, b=8'xFF, sel=intTriggered, out=fetchData)
+    Mux<8>(a=IR, b=fetchData, sel=grabIR, out=nextIR)
+    Dff<8>(in=nextIR, out=IR)
+
+    Z80OctalMapper(octal=IR[3:5], prefix=PR, reg16=destReg, isHigh=destHigh, isMemory=destMem)
+    Z80OctalMapper(octal=IR[0:2], prefix=PR, reg16=srcReg,  isHigh=srcHigh,  isMemory=srcMem)
+
+    Or<1>(a=isT1, b=isT2, out=isT1orT2)
+    Or<1>(a=isT1orT2, b=isT3, out=isT1toT3)
+    And<1>(a=isM1, b=isT1orT2, out=m1_fetch)
+
+    Or<1>(a=isM2, b=isM3, out=isMultiM)
+    And<1>(a=isMultiM, b=isT1orT2, out=multi_active)
+    Or<1>(a=isIORead, b=isIOWrite, out=doIO)
+    And<1>(a=doIO, b=multi_active, out=io_active)
+    Not<1>(in=doIO, out=notIO)
+    And<1>(a=multi_active, b=notIO, out=mem_multi_active)
+    Or<1>(a=m1_fetch, b=mem_multi_active, out=mem_active)
+
+    And<1>(a=io_active, b=isIORead, out=seq_io_read)
+    And<1>(a=io_active, b=isIOWrite, out=seq_io_write)
+    Or<1>(a=mem_active, b=seq_io_read, out=final_rd)
+
+    Not<1>(in=mem_active, out=mreq_n)
+    Not<1>(in=io_active, out=iorq_n)
+    Not<1>(in=final_rd, out=rd_n)
+    Not<1>(in=seq_io_write, out=wr_n)
+    Not<1>(in=m1_fetch, out=m1_n)
+
+    And<1>(a=isM1, b=isT3, out=incM1)
+    And<1>(a=isM2, b=isT3, out=incM2)
+    And<1>(a=isM3, b=isT3, out=incM3)
+    And<1>(a=incM2, b=reqM2_Read, out=incM2_Read)
+    And<1>(a=incM3, b=reqM3_Read, out=incM3_Read)
+    Or<1>(a=incM1, b=incM2_Read, out=incM12)
+    Or<1>(a=incM12, b=incM3_Read, out=inc_pc)
+
+    And<1>(a=endM1, b=isLoad8, out=exec_LD8)
+    And<1>(a=endM1, b=isALU8, out=exec_ALU8)
+    And<1>(a=endM3_cycle, b=isLoad16Imm, out=exec_LD16)
+
+    And<1>(a=isM2, b=isT3, out=grabM2)
+    Mux<16>(a=TempZ, b={8'd0, din}, sel=grabM2, out=nextTempZ)
+    Dff<16>(in=nextTempZ, out=TempZ)
+
+    Or<1>(a=exec_LD8, b=exec_ALU8, out=write_8bit)
+    Or<1>(a=write_8bit, b=exec_LD16, out=write_target)
+    Or<1>(a=inc_pc, b=write_target, out=regWe)
+
+    Mux<4>(a=REG16_PC, b=destReg, sel=write_target, out=regWriteSel)
+    Mux<8>(a=regB[0:7], b=regB[8:15], sel=srcHigh, out=src8)
+    Mux<8>(a=regA[0:7], b=aluFlags, sel=exec_ALU8, out=nextF)
+    Mux<8>(a=regA[0:7], b=regA[8:15], sel=destHigh, out=dest8_preserved)
+    Mux<8>(a=src8, b=aluOut, sel=exec_ALU8, out=result8)
+
+    Mux<16>(a={regA[8:15], result8}, b={result8, nextF}, sel=destHigh, out=dest16_packed)
+    Mux<16>(a=dest16_packed, b={din, TempZ[0:7]}, sel=exec_LD16, out=final_write_data)
+    Add<16>(a=regA, b=16'd1, out=pcPlus1)
+    Mux<16>(a=pcPlus1, b=final_write_data, sel=write_target, out=regWriteData)
+
+    Add<8>(a=regR, b=8'd1, out=nextR)
+    Mux<8>(a=regR, b=nextR, sel=incM1, out=newR)
+    Dff<8>(in=newR, out=regR)
+
+    Or<1>(a=isT3, b=isT4, out=isT3orT4)
+    And<1>(a=isM1, b=isT3orT4, out=doRefresh)
+    Not<1>(in=doRefresh, out=rfsh_n)
+    altAF = isExAF
+    altEXX = isExx
+
+    Mux<4>(a=destReg, b=REG16_PC, sel=isT1toT3, out=addrRegSel)
+    Mux<4>(a=addrRegSel, b=REG16_IR, sel=doRefresh, out=regSelA)
+    Mux<4>(a=REG16_PC, b=srcReg, sel=isT4, out=regSelB)
+
+    Mux<16>(a=regA, b={regA[8:15], regR}, sel=doRefresh, out=addr)
+    dout = regA[0:7]
+    aluSrc = src8

@@ -1,0 +1,32 @@
+CHIP Memory48K
+
+IN
+    cpuAddr[16], cpuDataIn[8], mreq_n, rd_n, wr_n, ulaVramAddr[14]
+
+OUT
+    cpuDataOut[8], ulaVramData[8]
+
+PARTS
+    Not<1>(in=cpuAddr[15], out=not_A15)
+    Not<1>(in=cpuAddr[14], out=not_A14)
+    And<1>(a=not_A15, b=not_A14, out=isROM)
+    And<1>(a=not_A15, b=cpuAddr[14], out=isLowRAM)
+
+    Not<1>(in=mreq_n, out=mreq)
+    Not<1>(in=wr_n, out=wr)
+    And<1>(a=mreq, b=wr, out=memWrite)
+
+    And<1>(a=memWrite, b=isLowRAM, out=loadLowRAM)
+    And<1>(a=memWrite, b=cpuAddr[15], out=loadHighRAM)
+
+    // Yield address lines to the ULA if it's accessing the contended VRAM bank
+    And<1>(a=mreq, b=isLowRAM, out=cpuAccLow)
+    Mux<14>(a=ulaVramAddr, b=cpuAddr[0:13], sel=cpuAccLow, out=lowRamAddr)
+
+    ROM<14, 8>(address=cpuAddr[0:13], out=romData) @ROM48K
+    RAM<14, 8>(in=cpuDataIn, address=lowRamAddr, load=loadLowRAM, out=lowRamData)
+    RAM<15, 8>(in=cpuDataIn, address=cpuAddr[0:14], load=loadHighRAM, out=highRamData)
+
+    ulaVramData = lowRamData
+    Mux<8>(a=romData, b=lowRamData, sel=cpuAddr[14], out=lowHalfData)
+    Mux<8>(a=lowHalfData, b=highRamData, sel=cpuAddr[15], out=cpuDataOut)

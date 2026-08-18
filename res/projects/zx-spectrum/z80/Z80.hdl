@@ -1,0 +1,33 @@
+CHIP Z80
+
+IN
+    reset_n, wait_n, int_n, nmi_n, busrq_n, din[8]
+
+OUT
+    dout[8], addr[16],
+    mreq_n, iorq_n, rd_n, wr_n, m1_n, rfsh_n
+
+PARTS
+    // Core timing and instruction sequencer
+    Z80Sequencer(
+        reset_n = reset_n, wait_n = wait_n, int_n = int_n, din = din,
+        regA = regA, regB = regB, aluOut = aluOut, aluFlags = aluFlags,
+        dout = dout, addr = addr, mreq_n = mreq_n, iorq_n = iorq_n,
+        rd_n = rd_n, wr_n = wr_n, m1_n = m1_n, rfsh_n = rfsh_n,
+        regSelA = regSelA, regSelB = regSelB, regWriteSel = regWriteSel,
+        regWe = regWe, altAF = altAF, altEXX = altEXX, aluOp = aluOp,
+        regWriteData = regWriteData, aluSrc = aluSrc
+    )
+
+    // CPU Register state storage
+    Z80RegisterFile(
+        selA = regSelA, selB = regSelB, selWr = regWriteSel,
+        dataIn = regWriteData, we = regWe, altAF = altAF, altEXX = altEXX,
+        outA = regA, outB = regB
+    )
+
+    // Arithmetic and Logic Unit
+    Z80ALU(
+        a = regA[0:7], b = aluSrc, flagsIn = regA[8:15],
+        op = aluOp, out = aluOut, flagsOut = aluFlags
+    )

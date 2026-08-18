@@ -51,6 +51,7 @@ desktop.ini
 /res/*
 !/res/global/
 !/res/projects/
+!/res/build_chips.bat
 !/res/cpp/
 /res/cpp/*
 !/res/cpp/.gitkeep

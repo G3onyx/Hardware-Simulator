@@ -2,21 +2,14 @@ grammar HDL;
 
 // PARSER RULES
 
-chip : KW_CHIP name=ID genericParams? flag* constSection? declaration* partsSection? EOF ;
+chip : KW_CHIP name=ID genericParams? flag* constSection? inSection* outSection* partsSection? EOF ;
 
 genericParams : LANGLE params+=ID (COMMA? params+=ID)* RANGLE ;
 
 flag : AT name=ID (LPAREN data=(ID | INTEGER | PATH) RPAREN)? ;
 
-declaration
-    : inSection
-    | outSection
-    | wiresSection
-    ;
-
 inSection    : KW_IN sigs+=signal (COMMA? sigs+=signal)* ;
 outSection   : KW_OUT sigs+=signal (COMMA? sigs+=signal)* ;
-wiresSection  : KW_WIRES sigs+=signal (COMMA? sigs+=signal)* ;
 constSection : KW_CONST constants+=constDef (COMMA? constants+=constDef)* ;
 partsSection : KW_PARTS parts+=part (COMMA? parts+=part)* ;
 
@@ -60,7 +53,6 @@ part
 KW_CHIP  : 'CHIP' ;
 KW_IN    : 'IN' ;
 KW_OUT   : 'OUT' ;
-KW_WIRES  : 'WIRES' ;
 KW_CONST : 'CONST' ;
 KW_PARTS : 'PARTS' ;
 

@@ -1,0 +1,76 @@
+CHIP Z80ALU
+
+IN
+    a[8], b[8], flagsIn[8], op[4]
+
+OUT
+    out[8], flagsOut[8]
+
+PARTS
+    // Carry evaluation
+    And<1>(a=op[0], b=flagsIn[0], out=useCarry)
+
+    // 9-Bit Math for Carry Out
+    Add<9>(a={1'b0, a}, b={1'b0, b}, out=addBase)
+    Add<9>(a=addBase, b={8'd0, useCarry}, out=add9)
+    Sub<9>(a={1'b0, a}, b={1'b0, b}, out=subBase)
+    Sub<9>(a=subBase, b={8'd0, useCarry}, out=sub9)
+
+    // Logical Operations
+    And<8>(a=a, b=b, out=and8)
+    Xor<8>(a=a, b=b, out=xor8)
+    Or<8>(a=a, b=b, out=or8)
+
+    // Operation Multiplexing
+    Mux<8>(a=add9[0:7], b=sub9[0:7], sel=op[1], out=mathOut)
+    Mux<8>(a=and8, b=xor8, sel=op[0], out=logicOut1)
+    Mux<8>(a=logicOut1, b=or8, sel=op[1], out=logicOut2)
+    Mux<8>(a=mathOut, b=logicOut2, sel=op[2], out=aluResult)
+    out = aluResult
+
+    // Standard Flags (Sign, Zero, Y/X Undocumented flags)
+    flagS = aluResult[7]
+    Eq<8>(a=aluResult, b=8'd0, out=flagZ)
+    flagY = aluResult[5]
+    flagX = aluResult[3]
+
+    // Half-Carry Computation (bits 0-3)
+    Add<5>(a={1'b0, a[0:3]}, b={1'b0, b[0:3]}, out=hAddBase)
+    Add<5>(a=hAddBase, b={4'd0, useCarry}, out=halfAdd)
+    Sub<5>(a={1'b0, a[0:3]}, b={1'b0, b[0:3]}, out=hSubBase)
+    Sub<5>(a=hSubBase, b={4'd0, useCarry}, out=halfSub)
+    Mux<1>(a=halfAdd[4], b=halfSub[4], sel=op[1], out=mathH)
+
+    Not<1>(in=op[0], out=notOp0)
+    Not<1>(in=op[1], out=notOp1)
+    And<1>(a=notOp0, b=notOp1, out=isAndOp)
+    Mux<1>(a=1'b0, b=1'b1, sel=isAndOp, out=logicH)
+    Mux<1>(a=mathH, b=logicH, sel=op[2], out=flagH)
+
+    // Parity Calculation
+    Xor<1>(a=aluResult[0], b=aluResult[1], out=p1)
+    Xor<1>(a=aluResult[2], b=aluResult[3], out=p2)
+    Xor<1>(a=aluResult[4], b=aluResult[5], out=p3)
+    Xor<1>(a=aluResult[6], b=aluResult[7], out=p4)
+    Xor<1>(a=p1, b=p2, out=p5)
+    Xor<1>(a=p3, b=p4, out=p6)
+    Xor<1>(a=p5, b=p6, out=oddParity)
+    Not<1>(in=oddParity, out=evenParity)
+
+    // Overflow Validation
+    Xor<1>(a=a[7], b=b[7], out=diffSigns)
+    Not<1>(in=diffSigns, out=sameSigns)
+    Xor<1>(a=a[7], b=aluResult[7], out=changedSign)
+    And<1>(a=sameSigns, b=changedSign, out=addOv)
+    And<1>(a=diffSigns, b=changedSign, out=subOv)
+    Mux<1>(a=addOv, b=subOv, sel=op[1], out=mathOv)
+    Mux<1>(a=mathOv, b=evenParity, sel=op[2], out=flagPV)
+
+    // Add/Subtract & Carry flags
+    Not<1>(in=op[2], out=notOp2)
+    And<1>(a=op[1], b=notOp2, out=flagN)
+    Mux<1>(a=add9[8], b=sub9[8], sel=op[1], out=mathC)
+    Mux<1>(a=mathC, b=1'b0, sel=op[2], out=flagC)
+
+    // Output Packing
+    flagsOut = {flagS, flagZ, flagY, flagH, flagX, flagPV, flagN, flagC}

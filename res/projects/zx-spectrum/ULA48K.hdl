@@ -1,0 +1,74 @@
+CHIP ULA48K
+
+IN
+    cpuAddr[16], cpuData[8],
+    mreq_n, iorq_n, rd_n, wr_n,
+    kbRows[5], earIn, vramData[8]
+
+OUT
+    wait_n, int_n, vramAddr[14], ulaData[8],
+    micOut, speaker
+
+PARTS
+    // Raster Counters (224 T-States/line, 312 lines/frame)
+    Add<8>(a=xCount, b=8'd1, out=xPlus1)
+    Eq<8>(a=xCount, b=8'd223, out=xReset)
+    Mux<8>(a=xPlus1, b=8'd0, sel=xReset, out=nextX)
+    Dff<8>(in=nextX, out=xCount)
+
+    Add<9>(a=yCount, b=9'd1, out=yPlus1)
+    Eq<9>(a=yCount, b=9'd311, out=yReset)
+    And<1>(a=xReset, b=yReset, out=frameEnd)
+    Mux<9>(a=yCount, b=yPlus1, sel=xReset, out=yInc)
+    Mux<9>(a=yInc, b=9'd0, sel=frameEnd, out=nextY)
+    Dff<9>(in=nextY, out=yCount)
+
+    // Vertical Blank Interrupt (/INT)
+    Eq<9>(a=yCount, b=9'd0, out=isLine0)
+    Lt<8>(a=xCount, b=8'd32, out=isEarlyX)
+    And<1>(a=isLine0, b=isEarlyX, out=intActive)
+    Not<1>(in=intActive, out=int_n)
+
+    // I/O Port 0xFE Decoding
+    Not<1>(in=cpuAddr[0], out=isPortFE)
+    Not<1>(in=iorq_n, out=isIOReq)
+    Not<1>(in=wr_n, out=isWrite)
+    Not<1>(in=rd_n, out=isRead)
+    And<1>(a=isIOReq, b=isWrite, out=isIOWrite)
+    And<1>(a=isIOWrite, b=isPortFE, out=writeFE)
+
+    Mux<8>(a=portOutState, b=cpuData, sel=writeFE, out=nextPortOut)
+    Dff<8>(in=nextPortOut, out=portOutState)
+    micOut = portOutState[3]
+    speaker = portOutState[4]
+
+    And<1>(a=isIOReq, b=isRead, out=isIORead)
+    And<1>(a=isIORead, b=isPortFE, out=readFE)
+
+    ulaData = {2'b11, earIn, kbRows}
+
+    // Video Address Generation (Screen Rendering)
+    Lt<9>(a=yCount, b=9'd192, out=yActive)
+    Lt<8>(a=xCount, b=8'd128, out=xActive)
+    And<1>(a=yActive, b=xActive, out=isDrawing)
+
+    // Non-linear bitmap address interleaving logic unique to ZX Spectrum
+    vramAddr = {1'b0, yCount[6:7], yCount[0:2], yCount[3:5], xCount[2:6]}
+
+    Screen<256, 192>(
+        x = {8'd0, xCount[2:6], 3'b000}, y = {7'd0, yCount[0:8]},
+        data = {56'd0, vramData}, span = 8'd8,
+        fg = 32'xFF_FF_FF_FF, bg = 32'xFF_00_00_00, draw = isDrawing
+    )
+
+    // Precise Memory Contention Stalling
+    And<1>(a=xCount[1], b=xCount[2], out=isMod6or7)
+    Not<1>(in=isMod6or7, out=isStallPhase)
+    Not<1>(in=cpuAddr[15], out=notA15)
+    And<1>(a=notA15, b=cpuAddr[14], out=isContendedBank)
+    Not<1>(in=mreq_n, out=mreq)
+    And<1>(a=isContendedBank, b=mreq, out=cpuAccessingVRAM)
+
+    And<1>(a=isDrawing, b=cpuAccessingVRAM, out=contentionConflict)
+    And<1>(a=contentionConflict, b=isStallPhase, out=assertWait)
+    Not<1>(in=assertWait, out=wait_n)

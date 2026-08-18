@@ -1,0 +1,103 @@
+CHIP Z80Decoder
+
+@const(z80_opcodes)
+@const(z80_alu)
+
+IN IR[8], prefix[8]
+
+OUT
+    isPrefix, isLoad8, isLoad8Imm, isALU8, isALUImm, isLoad16Imm, isPushPop, isMemWrite, isJump,
+    aluOp[4], reqM2_Read, reqM3_Read, reqM2_Write, isIORead, isIOWrite, isExx, isExAF,
+    isCondJump, is16BitMath, isWriteToMem
+
+PARTS
+    opX = IR[6:7]
+    opY = IR[3:5]
+    opZ = IR[0:2]
+    opQ = IR[3]
+
+    // Prefix detection
+    Eq<8>(a=IR, b=PRE_CB, out=isCB)
+    Eq<8>(a=IR, b=PRE_DD, out=isDD)
+    Eq<8>(a=IR, b=PRE_ED, out=isED)
+    Eq<8>(a=IR, b=PRE_FD, out=isFD)
+    Or<1>(a=isCB, b=isDD, out=p1)
+    Or<1>(a=isED, b=isFD, out=p2)
+    Or<1>(a=p1, b=p2, out=isPrefix)
+
+    // Load instructions
+    Eq<2>(a=opX, b=BLOCK_LD8, out=isLoad8Block)
+    Eq<8>(a=IR, b=OP_HALT, out=isHalt)
+    Not<1>(in=isHalt, out=notHalt)
+    And<1>(a=isLoad8Block, b=notHalt, out=isLoad8)
+    Eq<3>(a=opZ, b=3'd6, out=isZ6)
+    And<1>(a=isLoad8Block, b=isZ6, out=isImmLD)
+    Not<1>(in=isImmLD, out=notImmLD)
+    And<1>(a=isLoad8Block, b=notImmLD, out=isPureLoad8)
+
+    // ALU Decoding
+    Eq<2>(a=opX, b=BLOCK_ALU, out=isALUBlock)
+    And<1>(a=isALUBlock, b=notImmLD, out=isALU8)
+    Mux<4>(a=ALU_ADD, b={1'b0, opY}, sel=isALU8, out=aluOp)
+
+    // Control & Jumping
+    Eq<2>(a=opX, b=BLOCK_JMP, out=isJmpBlock)
+    And<1>(a=isJmpBlock, b=isZ6, out=isImmALU)
+    Eq<2>(a=opX, b=BLOCK_CTRL, out=isCtrlBlock)
+    Eq<3>(a=opZ, b=3'd1, out=isZ1)
+    Not<1>(in=opQ, out=notQ)
+    And<1>(a=isCtrlBlock, b=isZ1, out=ld16a)
+    And<1>(a=ld16a, b=notQ, out=isLoad16Imm)
+
+    // Stack Operations
+    Eq<3>(a=opZ, b=3'd5, out=isZ5)
+    And<1>(a=isJmpBlock, b=isZ5, out=isPush)
+    And<1>(a=isJmpBlock, b=isZ1, out=pop1)
+    And<1>(a=pop1, b=opQ, out=isPop)
+    Or<1>(a=isPush, b=isPop, out=isPushPop)
+
+    // Memory writes
+    And<1>(a=isLoad8Block, b=isZ6, out=isMemW1)
+    Eq<8>(a=IR, b=8'x32, out=isMemW2)
+    Or<1>(a=isMemW1, b=isMemW2, out=isMemWrite)
+    isWriteToMem = isMemWrite
+
+    // Jumps and Subroutines
+    Eq<8>(a=IR, b=8'xC3, out=isJP)
+    Eq<8>(a=IR, b=8'xCD, out=isCALL)
+    Eq<8>(a=IR, b=8'xC9, out=isRET)
+    Or<1>(a=isJP, b=isCALL, out=jmpOrCall)
+    Or<1>(a=jmpOrCall, b=isRET, out=isJump)
+
+    // State Fetching Needs
+    Or<1>(a=isImmLD, b=isImmALU, out=needs1ByteImm)
+    Or<1>(a=needs1ByteImm, b=isPush, out=reqM2_Read)
+    Or<1>(a=isLoad16Imm, b=isJP, out=needs2ByteImm)
+    Or<1>(a=needs2ByteImm, b=isCALL, out=reqM3_Read)
+    reqM2_Write = isMemWrite
+
+    // I/O & Exchange
+    Eq<8>(a=IR, b=8'xDB, out=isDB)
+    Eq<8>(a=IR, b=8'xD3, out=isD3)
+    Eq<3>(a=opZ, b=3'd0, out=isZ0)
+    And<1>(a=isED, b=isZ0, out=isED_Z0)
+    And<1>(a=isED, b=isZ1, out=isED_Z1)
+    Or<1>(a=isDB, b=isED_Z0, out=isIORead)
+    Or<1>(a=isD3, b=isED_Z1, out=isIOWrite)
+
+    Eq<8>(a=IR, b=8'x08, out=is08)
+    Eq<8>(a=IR, b=8'xD9, out=isD9)
+    isExAF = is08
+    isExx  = isD9
+
+    // Condition Codes
+    Eq<3>(a=opZ, b=3'd2, out=isZ2)
+    Eq<3>(a=opZ, b=3'd4, out=isZ4)
+    Or<1>(a=isZ2, b=isZ4, out=isJmpCallCond)
+    Or<1>(a=isJmpCallCond, b=isZ0, out=isAnyCond)
+    And<1>(a=isCtrlBlock, b=isAnyCond, out=isCondJump)
+
+    // Extended Math
+    Eq<2>(a=opX, b=2'b00, out=is00)
+    And<1>(a=is00, b=isZ1, out=addHL_base)
+    And<1>(a=addHL_base, b=opQ, out=is16BitMath)

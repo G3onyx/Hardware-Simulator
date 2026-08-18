@@ -160,11 +160,15 @@ private:
         out << "#include <cstdint>\n";
         out << "#include <stdexcept>\n";
         out << "#include <string>\n";
-        out << "#include <iostream>\n";
-        out << "#include <fstream>\n";
-        out << "#include <vector>\n\n";
 
-        out << "class " << chip_name << " final {\n";
+        for (const auto& node : graph.nodes) {
+            if (node.type == PrimitiveType::PERIPHERAL && node.chip_type == "Print") {
+                out << "#include <iostream>\n";
+                break;
+            }
+        }
+
+        out << "\nclass " << chip_name << " final {\n";
         out << "    uint64_t state[" << graph.net_count << "] = {};\n\n";
     }
 
@@ -256,7 +260,24 @@ private:
                 out << "                }\n";
                 out << "            }\n";
                 out << "        }\n";
-            } else if (node.chip_type == "Print") {
+            }
+            else if (node.chip_type == "Audio") {
+                out << "\n";
+                out << "        static constexpr size_t BUFFER_SIZE = 4096;\n";
+                out << "        uint64_t left_buf[BUFFER_SIZE] = {};\n";
+                out << "        uint64_t right_buf[BUFFER_SIZE] = {};\n";
+                out << "        size_t write_head = 0;\n";
+                out << "        size_t read_head = 0;\n\n";
+
+                out << "        void update() {\n";
+                out << "            if (get_strobe()) {\n";
+                out << "                left_buf[write_head] = get_left();\n";
+                out << "                right_buf[write_head] = get_right();\n";
+                out << "                write_head = (write_head + 1) % BUFFER_SIZE;\n";
+                out << "            }\n";
+                out << "        }\n";
+            }
+            else if (node.chip_type == "Print") {
                 const uint32_t data_w = node.args.empty() ? 1 : node.args[0];
                 out << "\n";
                 out << "        void update() {\n";
@@ -291,51 +312,17 @@ private:
         out << "    }\n\n";
     }
 
-    static void emit_rom_loader(std::ofstream& out, const CompilerGraph& graph) {
-        out << "    void load_rom(const std::string& tag, const std::string& rom_path) {\n";
-        out << "        if (rom_path.empty() || tag.empty()) return;\n\n";
-        out << "        std::ifstream file(rom_path);\n";
-        out << "        if (!file.is_open()) {\n";
-        out << "            std::cerr << \"[ROM] Warning: Could not open ROM file: \" << rom_path << \"\\n\";\n";
-        out << "            return;\n";
-        out << "        }\n\n";
-        out << "        std::vector<uint16_t> buffer;\n";
-        out << "        std::string line;\n";
-        out << "        while (std::getline(file, line)) {\n";
-        out << "            if (const size_t pos = line.find(\"//\"); pos != std::string::npos) line = line.substr(0, pos);\n";
-        out << "            while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) line.pop_back();\n";
-        out << "            size_t start = 0;\n";
-        out << "            while (start < line.size() && std::isspace(static_cast<unsigned char>(line[start]))) start++;\n";
-        out << "            if (start >= line.size()) continue;\n";
-        out << "            line = line.substr(start);\n";
-        out << "            if (line.empty() || (line[0] != '0' && line[0] != '1')) continue;\n\n";
-        out << "            uint16_t val = 0;\n";
-        out << "            for (size_t i = 0; i < 16 && i < line.length(); ++i) {\n";
-        out << "                if (line[i] == '1') val |= 1ULL << (15 - i);\n";
-        out << "            }\n";
-        out << "            buffer.push_back(val);\n";
-        out << "        }\n\n";
-
-        for (size_t i = 0; i < graph.nodes.size(); ++i) {
-            if (graph.nodes[i].type == PrimitiveType::ROM && !graph.nodes[i].tag.empty()) {
-                const uint64_t cap = 1ULL << (!graph.nodes[i].args.empty() ? graph.nodes[i].args[0] : 1);
-                out << "        if (tag == \"" << graph.nodes[i].tag << "\") {\n";
-                out << "            const size_t loaded = std::min(buffer.size(), " << cap << "ULL);\n";
-                out << "            for (size_t j = 0; j < loaded; ++j) mem_" << i << "[j] = buffer[j];\n";
-                out << R"(            std::cout << "[ROM] Loaded " << loaded << "/" << )" << cap << "ULL << \" words into '\" << tag << \"'\\n\";\n";
-                out << "        }\n";
-            }
-        }
-        out << "    }\n\n";
-    }
-
     static void emit_io_api(std::ofstream& out, const CompilerGraph& graph) {
         std::unordered_map<std::string, NetID> all_pins = graph.io_mapping;
         std::unordered_map<std::string, size_t> mem_nodes;
+        std::unordered_map<std::string, uint64_t> mem_caps;
 
         for (size_t i = 0; i < graph.nodes.size(); ++i) {
             if (graph.nodes[i].is_dead || graph.nodes[i].tag.empty()) continue;
-            if (graph.nodes[i].type == PrimitiveType::RAM || graph.nodes[i].type == PrimitiveType::ROM) mem_nodes[graph.nodes[i].tag] = i;
+            if (graph.nodes[i].type == PrimitiveType::RAM || graph.nodes[i].type == PrimitiveType::ROM) {
+                mem_nodes[graph.nodes[i].tag] = i;
+                mem_caps[graph.nodes[i].tag] = 1ULL << (!graph.nodes[i].args.empty() ? graph.nodes[i].args[0] : 1);
+            }
             else if (graph.nodes[i].type == PrimitiveType::DFF) all_pins[graph.nodes[i].tag] = graph.nodes[i].outputs[0];
         }
 
@@ -594,7 +581,6 @@ private:
         out << "class DynamicWrapper final : public IDynamicChip {\n";
         out << "    " << chip_name << " chip;\n";
         out << "public:\n";
-        out << "    void load_rom(const char* tag, const char* rom_path) override { chip.load_rom(tag ? tag : \"\", rom_path ? rom_path : \"\"); }\n";
         out << "    void set_pin(const char* name, uint64_t value) override { if (name) chip.set_pin(name, value); }\n";
         out << "    uint64_t get_pin(const char* name) override { return name ? chip.get_pin(name) : 0; }\n\n";
 
@@ -653,7 +639,6 @@ private:
         emit_memory_blocks(out_file, graph);
         emit_peripherals(out_file, chip_name, graph, builder, const_values);
         emit_constructor(out_file, chip_name, graph);
-        emit_rom_loader(out_file, graph);
         emit_io_api(out_file, graph);
         emit_combinational(out_file, graph, const_values);
         emit_sequential(out_file, graph);

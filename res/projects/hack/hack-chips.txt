@@ -1,0 +1,642 @@
+// keys.const
+// LOW KEYS
+KEY_A = 0;
+KEY_B = 1;
+KEY_C = 2;
+KEY_D = 3;
+KEY_E = 4;
+KEY_F = 5;
+KEY_G = 6;
+KEY_H = 7;
+KEY_I = 8;
+KEY_J = 9;
+KEY_K = 10;
+KEY_L = 11;
+KEY_M = 12;
+KEY_N = 13;
+KEY_O = 14;
+KEY_P = 15;
+KEY_Q = 16;
+KEY_R = 17;
+KEY_S = 18;
+KEY_T = 19;
+KEY_U = 20;
+KEY_V = 21;
+KEY_W = 22;
+KEY_X = 23;
+KEY_Y = 24;
+KEY_Z = 25;
+
+KEY_0 = 26;
+KEY_1 = 27;
+KEY_2 = 28;
+KEY_3 = 29;
+KEY_4 = 30;
+KEY_5 = 31;
+KEY_6 = 32;
+KEY_7 = 33;
+KEY_8 = 34;
+KEY_9 = 35;
+
+KEY_SPACE = 36;
+KEY_ENTER = 37;
+KEY_BACKSPACE = 38;
+KEY_ESCAPE = 39;
+
+KEY_MINUS = 40;
+KEY_EQUAL = 41;
+KEY_LEFT_BRACKET = 42;
+KEY_RIGHT_BRACKET = 43;
+KEY_SEMICOLON = 44;
+KEY_APOSTROPHE = 45;
+KEY_COMMA = 46;
+KEY_PERIOD = 47;
+KEY_SLASH = 48;
+KEY_GRAVE_ACCENT = 49;
+KEY_BACKSLASH = 50;
+KEY_TAB = 51;
+
+// HIGH KEYS
+KEY_UP = 0;
+KEY_DOWN = 1;
+KEY_LEFT = 2;
+KEY_RIGHT = 3;
+
+KEY_LEFT_SHIFT = 4;
+KEY_RIGHT_SHIFT = 5;
+
+KEY_LEFT_CONTROL = 6;
+KEY_RIGHT_CONTROL = 7;
+
+KEY_LEFT_ALT = 8;
+KEY_RIGHT_ALT = 9;
+
+KEY_F1 = 10;
+KEY_F2 = 11;
+KEY_F3 = 12;
+KEY_F4 = 13;
+KEY_F5 = 14;
+KEY_F6 = 15;
+KEY_F7 = 16;
+KEY_F8 = 17;
+KEY_F9 = 18;
+KEY_F10 = 19;
+KEY_F11 = 20;
+KEY_F12 = 21;
+
+KEY_HOME = 22;
+KEY_END = 23;
+KEY_PAGE_UP = 24;
+KEY_PAGE_DOWN = 25;
+KEY_INSERT = 26;
+KEY_DELETE = 27;
+KEY_CAPS_LOCK = 28;
+KEY_PAUSE = 29;
+KEY_PRINT_SCREEN = 30;
+KEY_SCROLL_LOCK = 31;
+---
+
+// Audio.hdl
+CHIP Audio<RESOLUTION>
+
+@peripheral
+
+IN
+left[RESOLUTION]    // Instantaneous digital amplitude for the left channel
+right[RESOLUTION]   // Instantaneous digital amplitude for the right channel
+strobe              // 1 = Active/Sample. Tie to 1 for continuous DAC output.
+---
+
+// Keyboard.hdl
+CHIP Keyboard
+
+@peripheral
+
+OUT
+low_keys[64], high_keys[64]
+
+
+---
+
+// Print.hdl
+CHIP Print<SIZE>
+
+@peripheral
+
+IN
+data[SIZE]
+mode[2] // 0 = Char, 1 = Denary, 2 = Hex, 3 = Binary
+write   // Pulse high to execute the print using the active mode
+---
+
+// Screen.hdl
+CHIP Screen<WIDTH, HEIGHT>
+
+@peripheral
+
+IN
+x[16], y[16],
+data[64],
+span[8],
+fg[32], bg[32],
+draw
+---
+
+// Dff.hdl
+CHIP Dff <WIDTH>
+
+@primitive
+
+IN in[WIDTH]
+OUT out[WIDTH]
+---
+
+// Nand.hdl
+CHIP Nand <WIDTH>
+
+@primitive
+
+IN a[WIDTH], b[WIDTH]
+OUT out[WIDTH]
+---
+
+// RAM.hdl
+CHIP RAM <ADDR_SIZE, DATA_SIZE>
+
+@primitive
+
+IN in[DATA_SIZE], address[ADDR_SIZE], load
+OUT out[DATA_SIZE]
+---
+
+// ROM.hdl
+CHIP ROM <ADDR_SIZE, DATA_SIZE>
+
+@primitive
+
+IN address[ADDR_SIZE]
+OUT out[DATA_SIZE]
+---
+
+// hack_scancodes.const
+// Letters A-Z
+SCAN_A = 16'd65;
+SCAN_B = 16'd66;
+SCAN_C = 16'd67;
+SCAN_D = 16'd68;
+SCAN_E = 16'd69;
+SCAN_F = 16'd70;
+SCAN_G = 16'd71;
+SCAN_H = 16'd72;
+SCAN_I = 16'd73;
+SCAN_J = 16'd74;
+SCAN_K = 16'd75;
+SCAN_L = 16'd76;
+SCAN_M = 16'd77;
+SCAN_N = 16'd78;
+SCAN_O = 16'd79;
+SCAN_P = 16'd80;
+SCAN_Q = 16'd81;
+SCAN_R = 16'd82;
+SCAN_S = 16'd83;
+SCAN_T = 16'd84;
+SCAN_U = 16'd85;
+SCAN_V = 16'd86;
+SCAN_W = 16'd87;
+SCAN_X = 16'd88;
+SCAN_Y = 16'd89;
+SCAN_Z = 16'd90;
+
+// Numbers 0-9
+SCAN_0 = 16'd48;
+SCAN_1 = 16'd49;
+SCAN_2 = 16'd50;
+SCAN_3 = 16'd51;
+SCAN_4 = 16'd52;
+SCAN_5 = 16'd53;
+SCAN_6 = 16'd54;
+SCAN_7 = 16'd55;
+SCAN_8 = 16'd56;
+SCAN_9 = 16'd57;
+
+// Specials
+SCAN_SPACE     = 16'd32;
+SCAN_ENTER     = 16'd128;
+SCAN_BACKSPACE = 16'd129;
+SCAN_ESCAPE    = 16'd140;
+
+SCAN_MINUS         = 16'd45;
+SCAN_EQUAL         = 16'd61;
+SCAN_LEFT_BRACKET  = 16'd91;
+SCAN_RIGHT_BRACKET = 16'd93;
+SCAN_SEMICOLON     = 16'd59;
+SCAN_APOSTROPHE    = 16'd39;
+SCAN_COMMA         = 16'd44;
+SCAN_PERIOD        = 16'd46;
+SCAN_SLASH         = 16'd47;
+SCAN_TAB           = 16'd9;
+SCAN_BACKSLASH     = 16'd92;
+SCAN_GRAVE_ACCENT  = 16'd96;
+
+// Navigation and Edit
+SCAN_LEFT      = 16'd130;
+SCAN_UP        = 16'd131;
+SCAN_RIGHT     = 16'd132;
+SCAN_DOWN      = 16'd133;
+SCAN_HOME      = 16'd134;
+SCAN_END       = 16'd135;
+SCAN_PAGE_UP   = 16'd136;
+SCAN_PAGE_DOWN = 16'd137;
+SCAN_INSERT    = 16'd138;
+SCAN_DELETE    = 16'd139;
+
+// F-Keys
+SCAN_F1  = 16'd141;
+SCAN_F2  = 16'd142;
+SCAN_F3  = 16'd143;
+SCAN_F4  = 16'd144;
+SCAN_F5  = 16'd145;
+SCAN_F6  = 16'd146;
+SCAN_F7  = 16'd147;
+SCAN_F8  = 16'd148;
+SCAN_F9  = 16'd149;
+SCAN_F10 = 16'd150;
+SCAN_F11 = 16'd151;
+SCAN_F12 = 16'd152;
+---
+
+// ALU.hdl
+CHIP ALU
+
+IN
+x[16], y[16]
+zx // Zero the x input
+nx // Negate the x input
+zy // Zero the y input
+ny // Negate the y input
+f  // Function code: 1 for Add, 0 for And
+no // Negate the out output
+
+OUT
+out[16]
+zr // Zero flag:     True iff out=0
+ng // Negative flag: True iff out<0
+
+PARTS
+Mux<16>(a=x, b=16'b0, sel=zx, out=xZeroed)
+Not<16>(in=xZeroed, out=xNot)
+Mux<16>(a=xZeroed, b=xNot, sel=nx, out=x1)
+
+Mux<16>(a=y, b=16'b0, sel=zy, out=yZeroed)
+Not<16>(in=yZeroed, out=yNot)
+Mux<16>(a=yZeroed, b=yNot, sel=ny, out=y1)
+
+Add<16>(a=x1, b=y1, out=xADDy)
+And<16>(a=x1, b=y1, out=xANDy)
+Mux<16>(a=xANDy, b=xADDy, sel=f, out=xy)
+
+Not<16>(in=xy, out=nxy)
+Mux<16>(a=xy, b=nxy, sel=no, out=output)
+
+out = output
+ng = output[15]
+
+Eq<16>(a=output, b=16'd0, out=zr)
+
+---
+
+// CPU.hdl
+CHIP CPU
+
+IN 
+instruction[16]  // Instruction to execute.
+inM[16]          // Value of Mem[A], the instruction’s M input
+reset            // Signals whether to continue (0) or restart (1)
+
+OUT
+outM[16]        // Value to write to Mem[addressM], the instruction’s M output
+writeM          // Write to the Memory?
+addressM[15]    // In which address to write?
+pc[15]          // address of next instruction
+
+PARTS
+
+// Instruction decoding
+isC = instruction[15]
+Not<1>(in=isC, out=isA)
+
+
+// Destination bits
+And<1>(a=isC, b=instruction[5], out=destA)
+Or<1>(a=isA, b=destA, out=loadA)
+
+And<1>(a=isC, b=instruction[4], out=loadD)
+
+And<1>(a=isC, b=instruction[3], out=writeM)
+
+
+// Registers and routing
+
+Mux<16>(a=aluOut, b=instruction, sel=isA, out=aIn)
+
+Register(in=aIn, load=loadA, out=aOut) @ARegister
+
+Register(in=aluOut, load=loadD, out=aluX) @DRegister
+addressM = aOut[0:14]
+
+Mux<16>(a=aOut, b=inM, sel=instruction[12], out=aluY)
+
+
+// ALU
+ALU(
+    x=aluX, y=aluY,
+    zx=instruction[11], nx=instruction[10]
+    zy=instruction[9], ny=instruction[8]
+    f=instruction[7], no=instruction[6]
+    out=aluOut
+    zr=zr, ng=ng
+)
+outM = aluOut
+
+
+// Jump logic
+
+Or<1>(a=ng, b=zr, out=ngOrZr)
+Not<1>(in=ngOrZr, out=pos)
+
+And<1>(a=instruction[2], b=ng, out=jlt) // JLT
+And<1>(a=instruction[1], b=zr, out=jeq) // JEQ
+And<1>(a=instruction[0], b=pos, out=jgt) // JGT
+
+Or<1>(a=jlt, b=jeq, out=jle)
+Or<1>(a=jle, b=jgt, out=jumpCond)
+And<1>(a=isC, b=jumpCond, out=jump)
+
+
+// Program counter
+PC(in=aOut, inc=1'b1, load=jump, reset=reset, out=pcOut) @PC
+pc = pcOut[0:14]
+---
+
+// HackComputer.hdl
+CHIP HackComputer
+
+@toplevel
+
+IN reset
+
+PARTS
+
+CPU(
+    instruction=instruction
+    inM=memoryOut
+    reset=reset
+    outM=outM
+    writeM=writeM
+    addressM=addressM
+    pc=pc
+)
+
+// RAM + Screen + Keyboard
+Memory(in=outM, address=addressM, load=writeM, out=memoryOut)
+
+ROM<15, 16>(address=pc, out=instruction) @ROM32K
+---
+
+// HackKeyEncoder.hdl
+CHIP HackKeyEncoder
+
+@const(keys)
+@const(hack_scancodes)
+
+IN low[64], high[64]
+OUT out[16]
+
+PARTS
+// --- MUX STAGE ---
+Mux<16>(a=16'd0, b=SCAN_A, sel=low[KEY_A], out=vA)
+Mux<16>(a=16'd0, b=SCAN_B, sel=low[KEY_B], out=vB)
+Mux<16>(a=16'd0, b=SCAN_C, sel=low[KEY_C], out=vC)
+Mux<16>(a=16'd0, b=SCAN_D, sel=low[KEY_D], out=vD)
+Mux<16>(a=16'd0, b=SCAN_E, sel=low[KEY_E], out=vE)
+Mux<16>(a=16'd0, b=SCAN_F, sel=low[KEY_F], out=vF)
+Mux<16>(a=16'd0, b=SCAN_G, sel=low[KEY_G], out=vG)
+Mux<16>(a=16'd0, b=SCAN_H, sel=low[KEY_H], out=vH)
+Mux<16>(a=16'd0, b=SCAN_I, sel=low[KEY_I], out=vI)
+Mux<16>(a=16'd0, b=SCAN_J, sel=low[KEY_J], out=vJ)
+Mux<16>(a=16'd0, b=SCAN_K, sel=low[KEY_K], out=vK)
+Mux<16>(a=16'd0, b=SCAN_L, sel=low[KEY_L], out=vL)
+Mux<16>(a=16'd0, b=SCAN_M, sel=low[KEY_M], out=vM)
+Mux<16>(a=16'd0, b=SCAN_N, sel=low[KEY_N], out=vN)
+Mux<16>(a=16'd0, b=SCAN_O, sel=low[KEY_O], out=vO)
+Mux<16>(a=16'd0, b=SCAN_P, sel=low[KEY_P], out=vP)
+Mux<16>(a=16'd0, b=SCAN_Q, sel=low[KEY_Q], out=vQ)
+Mux<16>(a=16'd0, b=SCAN_R, sel=low[KEY_R], out=vR)
+Mux<16>(a=16'd0, b=SCAN_S, sel=low[KEY_S], out=vS)
+Mux<16>(a=16'd0, b=SCAN_T, sel=low[KEY_T], out=vT)
+Mux<16>(a=16'd0, b=SCAN_U, sel=low[KEY_U], out=vU)
+Mux<16>(a=16'd0, b=SCAN_V, sel=low[KEY_V], out=vV)
+Mux<16>(a=16'd0, b=SCAN_W, sel=low[KEY_W], out=vW)
+Mux<16>(a=16'd0, b=SCAN_X, sel=low[KEY_X], out=vX)
+Mux<16>(a=16'd0, b=SCAN_Y, sel=low[KEY_Y], out=vY)
+Mux<16>(a=16'd0, b=SCAN_Z, sel=low[KEY_Z], out=vZ)
+
+Mux<16>(a=16'd0, b=SCAN_0, sel=low[KEY_0], out=v0)
+Mux<16>(a=16'd0, b=SCAN_1, sel=low[KEY_1], out=v1)
+Mux<16>(a=16'd0, b=SCAN_2, sel=low[KEY_2], out=v2)
+Mux<16>(a=16'd0, b=SCAN_3, sel=low[KEY_3], out=v3)
+Mux<16>(a=16'd0, b=SCAN_4, sel=low[KEY_4], out=v4)
+Mux<16>(a=16'd0, b=SCAN_5, sel=low[KEY_5], out=v5)
+Mux<16>(a=16'd0, b=SCAN_6, sel=low[KEY_6], out=v6)
+Mux<16>(a=16'd0, b=SCAN_7, sel=low[KEY_7], out=v7)
+Mux<16>(a=16'd0, b=SCAN_8, sel=low[KEY_8], out=v8)
+Mux<16>(a=16'd0, b=SCAN_9, sel=low[KEY_9], out=v9)
+
+Mux<16>(a=16'd0, b=SCAN_SPACE,     sel=low[KEY_SPACE],     out=vSp)
+Mux<16>(a=16'd0, b=SCAN_ENTER,     sel=low[KEY_ENTER],     out=vEn)
+Mux<16>(a=16'd0, b=SCAN_BACKSPACE, sel=low[KEY_BACKSPACE], out=vBk)
+Mux<16>(a=16'd0, b=SCAN_ESCAPE,    sel=low[KEY_ESCAPE],    out=vEs)
+
+Mux<16>(a=16'd0, b=SCAN_MINUS,         sel=low[KEY_MINUS],         out=vMin)
+Mux<16>(a=16'd0, b=SCAN_EQUAL,         sel=low[KEY_EQUAL],         out=vEq)
+Mux<16>(a=16'd0, b=SCAN_LEFT_BRACKET,  sel=low[KEY_LEFT_BRACKET],  out=vLBr)
+Mux<16>(a=16'd0, b=SCAN_RIGHT_BRACKET, sel=low[KEY_RIGHT_BRACKET], out=vRBr)
+Mux<16>(a=16'd0, b=SCAN_SEMICOLON,     sel=low[KEY_SEMICOLON],     out=vSem)
+Mux<16>(a=16'd0, b=SCAN_APOSTROPHE,    sel=low[KEY_APOSTROPHE],    out=vApo)
+Mux<16>(a=16'd0, b=SCAN_COMMA,         sel=low[KEY_COMMA],         out=vCom)
+Mux<16>(a=16'd0, b=SCAN_PERIOD,        sel=low[KEY_PERIOD],        out=vPer)
+Mux<16>(a=16'd0, b=SCAN_SLASH,         sel=low[KEY_SLASH],         out=vSla)
+Mux<16>(a=16'd0, b=SCAN_TAB,           sel=low[KEY_TAB],           out=vTab)
+Mux<16>(a=16'd0, b=SCAN_BACKSLASH,     sel=low[KEY_BACKSLASH],     out=vBsla)
+Mux<16>(a=16'd0, b=SCAN_GRAVE_ACCENT,  sel=low[KEY_GRAVE_ACCENT],  out=vGrav)
+
+Mux<16>(a=16'd0, b=SCAN_UP,    sel=high[KEY_UP],    out=vUp)
+Mux<16>(a=16'd0, b=SCAN_DOWN,  sel=high[KEY_DOWN],  out=vDn)
+Mux<16>(a=16'd0, b=SCAN_LEFT,  sel=high[KEY_LEFT],  out=vLf)
+Mux<16>(a=16'd0, b=SCAN_RIGHT, sel=high[KEY_RIGHT], out=vRt)
+
+Mux<16>(a=16'd0, b=SCAN_HOME,      sel=high[KEY_HOME],      out=vHom)
+Mux<16>(a=16'd0, b=SCAN_END,       sel=high[KEY_END],       out=vEnd)
+Mux<16>(a=16'd0, b=SCAN_PAGE_UP,   sel=high[KEY_PAGE_UP],   out=vPgU)
+Mux<16>(a=16'd0, b=SCAN_PAGE_DOWN, sel=high[KEY_PAGE_DOWN], out=vPgD)
+Mux<16>(a=16'd0, b=SCAN_INSERT,    sel=high[KEY_INSERT],    out=vIns)
+Mux<16>(a=16'd0, b=SCAN_DELETE,    sel=high[KEY_DELETE],    out=vDel)
+
+Mux<16>(a=16'd0, b=SCAN_F1,  sel=high[KEY_F1],  out=vF1)
+Mux<16>(a=16'd0, b=SCAN_F2,  sel=high[KEY_F2],  out=vF2)
+Mux<16>(a=16'd0, b=SCAN_F3,  sel=high[KEY_F3],  out=vF3)
+Mux<16>(a=16'd0, b=SCAN_F4,  sel=high[KEY_F4],  out=vF4)
+Mux<16>(a=16'd0, b=SCAN_F5,  sel=high[KEY_F5],  out=vF5)
+Mux<16>(a=16'd0, b=SCAN_F6,  sel=high[KEY_F6],  out=vF6)
+Mux<16>(a=16'd0, b=SCAN_F7,  sel=high[KEY_F7],  out=vF7)
+Mux<16>(a=16'd0, b=SCAN_F8,  sel=high[KEY_F8],  out=vF8)
+Mux<16>(a=16'd0, b=SCAN_F9,  sel=high[KEY_F9],  out=vF9)
+Mux<16>(a=16'd0, b=SCAN_F10, sel=high[KEY_F10], out=vF10)
+Mux<16>(a=16'd0, b=SCAN_F11, sel=high[KEY_F11], out=vF11)
+Mux<16>(a=16'd0, b=SCAN_F12, sel=high[KEY_F12], out=vF12)
+
+// --- OR REDUCTION TREE ---
+Or<16>(a=vA,  b=vB,  out=o1)
+Or<16>(a=o1,  b=vC,  out=o2)
+Or<16>(a=o2,  b=vD,  out=o3)
+Or<16>(a=o3,  b=vE,  out=o4)
+Or<16>(a=o4,  b=vF,  out=o5)
+Or<16>(a=o5,  b=vG,  out=o6)
+Or<16>(a=o6,  b=vH,  out=o7)
+Or<16>(a=o7,  b=vI,  out=o8)
+Or<16>(a=o8,  b=vJ,  out=o9)
+Or<16>(a=o9,  b=vK,  out=o10)
+Or<16>(a=o10, b=vL,  out=o11)
+Or<16>(a=o11, b=vM,  out=o12)
+Or<16>(a=o12, b=vN,  out=o13)
+Or<16>(a=o13, b=vO,  out=o14)
+Or<16>(a=o14, b=vP,  out=o15)
+Or<16>(a=o15, b=vQ,  out=o16)
+Or<16>(a=o16, b=vR,  out=o17)
+Or<16>(a=o17, b=vS,  out=o18)
+Or<16>(a=o18, b=vT,  out=o19)
+Or<16>(a=o19, b=vU,  out=o20)
+Or<16>(a=o20, b=vV,  out=o21)
+Or<16>(a=o21, b=vW,  out=o22)
+Or<16>(a=o22, b=vX,  out=o23)
+Or<16>(a=o23, b=vY,  out=o24)
+Or<16>(a=o24, b=vZ,  out=o25)
+
+Or<16>(a=o25, b=v0,  out=o26)
+Or<16>(a=o26, b=v1,  out=o27)
+Or<16>(a=o27, b=v2,  out=o28)
+Or<16>(a=o28, b=v3,  out=o29)
+Or<16>(a=o29, b=v4,  out=o30)
+Or<16>(a=o30, b=v5,  out=o31)
+Or<16>(a=o31, b=v6,  out=o32)
+Or<16>(a=o32, b=v7,  out=o33)
+Or<16>(a=o33, b=v8,  out=o34)
+Or<16>(a=o34, b=v9,  out=o35)
+
+Or<16>(a=o35, b=vSp, out=o36)
+Or<16>(a=o36, b=vEn, out=o37)
+Or<16>(a=o37, b=vBk, out=o38)
+Or<16>(a=o38, b=vEs, out=o39)
+
+Or<16>(a=o39, b=vMin, out=o40)
+Or<16>(a=o40, b=vEq,  out=o41)
+Or<16>(a=o41, b=vLBr, out=o42)
+Or<16>(a=o42, b=vRBr, out=o43)
+Or<16>(a=o43, b=vSem, out=o44)
+Or<16>(a=o44, b=vApo, out=o45)
+Or<16>(a=o45, b=vCom, out=o46)
+Or<16>(a=o46, b=vPer, out=o47)
+Or<16>(a=o47, b=vSla, out=o48)
+Or<16>(a=o48, b=vTab,  out=o49)
+Or<16>(a=o49, b=vBsla, out=o50)
+Or<16>(a=o50, b=vGrav, out=o51)
+
+Or<16>(a=o51, b=vUp, out=o52)
+Or<16>(a=o52, b=vDn, out=o53)
+Or<16>(a=o53, b=vLf, out=o54)
+Or<16>(a=o54, b=vRt, out=o55)
+
+Or<16>(a=o55, b=vHom, out=o56)
+Or<16>(a=o56, b=vEnd, out=o57)
+Or<16>(a=o57, b=vPgU, out=o58)
+Or<16>(a=o58, b=vPgD, out=o59)
+Or<16>(a=o59, b=vIns, out=o60)
+Or<16>(a=o60, b=vDel, out=o61)
+
+Or<16>(a=o61, b=vF1,  out=o62)
+Or<16>(a=o62, b=vF2,  out=o63)
+Or<16>(a=o63, b=vF3,  out=o64)
+Or<16>(a=o64, b=vF4,  out=o65)
+Or<16>(a=o65, b=vF5,  out=o66)
+Or<16>(a=o66, b=vF6,  out=o67)
+Or<16>(a=o67, b=vF7,  out=o68)
+Or<16>(a=o68, b=vF8,  out=o69)
+Or<16>(a=o69, b=vF9,  out=o70)
+Or<16>(a=o70, b=vF10, out=o71)
+Or<16>(a=o71, b=vF11, out=o72)
+Or<16>(a=o72, b=vF12, out=out)
+---
+
+// Memory.hdl
+CHIP Memory
+
+IN in[16], address[15], load
+OUT out[16]
+
+PARTS
+
+// Input routing
+DMux<1>(in=load, sel=address[14], a=loadRAM, b=loadIO)
+DMux<1>(in=loadIO, sel=address[13], a=loadScreen, b=_)
+
+// RAM
+RAM<14, 16>(in=in, address=address[0:13], load=loadRAM, out=ramOut) @RAM16K
+
+// Screen
+RAM<13, 16>(in=in, address=address[0:12], load=loadScreen, out=screenOut)
+Screen<512, 256>(
+    x = {7'b0, address[0:4], 4'b0}
+    y = {8'b0, address[5:12]}
+    data = {48'b0, in}
+    span = 8'd16
+    fg = 32'xFF_00_00_00 // Black
+    bg = 32'xFF_FF_FF_FF // White
+    draw = loadScreen
+)
+
+// Keyboard
+Keyboard(low_keys=low_keys, high_keys=high_keys)
+HackKeyEncoder(low=low_keys, high=high_keys, out=keyboardOut)
+
+// Output routing
+Mux<16>(a=screenOut, b=keyboardOut, sel=address[13], out=ioOut)
+Mux<16>(a=ramOut, b=ioOut, sel=address[14], out=out)
+---
+
+// PC.hdl
+CHIP PC
+
+IN in[16], inc, load, reset
+OUT out[16]
+
+PARTS
+Add<16>(a=mem, b=16'd1, out=incMem) // Inc16(in=mem, out=incMem)
+
+Mux<16>(a=mem, b=incMem, sel=inc, out=w1) // Increment memory if inc
+Mux<16>(a=w1, b=in, sel=load, out=w2)     // Replace memory if load
+Mux<16>(a=w2, b=16'd0, sel=reset, out=w3) // Zero memory if reset
+
+Register(in=w3, load=1'd1, out=mem)
+out = mem
+---
+
+// Register.hdl
+CHIP Register
+
+IN in[16], load
+OUT out[16]
+
+PARTS
+Mux<16>(a=fb, b=in, sel=load, out=mux_out)
+Dff<16>(in=mux_out, out=fb)
+out = fb

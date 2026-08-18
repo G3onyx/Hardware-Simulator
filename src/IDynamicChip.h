@@ -19,7 +19,6 @@ public:
     virtual ~IDynamicChip() = default;
     virtual HardwareState get_info() = 0;
     virtual void emulate_frame(uint64_t cycles, uint64_t keys_low, uint64_t keys_high) = 0;
-    virtual void load_rom(const char* tag, const char* rom_path) {}
     virtual void set_pin(const char* name, uint64_t value) {}
     virtual uint64_t get_pin(const char* name) { return 0; }
 };

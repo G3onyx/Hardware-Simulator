@@ -14,13 +14,6 @@ out[16]
 zr // Zero flag:     True iff out=0
 ng // Negative flag: True iff out<0
 
-WIRES
-xZeroed[16], xNot[16], x1[16]
-yZeroed[16], yNot[16], y1[16]
-xADDy[16], xANDy[16]
-xy[16], nxy[16]
-output[16], orLow, orHigh, orAll
-
 PARTS
 Mux<16>(a=x, b=16'b0, sel=zx, out=xZeroed)
 Not<16>(in=xZeroed, out=xNot)

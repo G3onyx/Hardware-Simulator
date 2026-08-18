@@ -225,22 +225,184 @@ class Builder {
         return concat_net;
     }
 
-    static void resolve_blueprint_nets(const Blueprint &bp, Scope &scope, CompilerGraph &graph) {
+    uint32_t get_formal_pin_width(const std::string& part_type, const std::string& pin_name, const std::vector<std::string>& part_args, const Scope& scope) const {
+        if (internal_primitives.contains(part_type)) return 1;
+        const Blueprint& p_bp = library.at(part_type);
+        if (!p_bp.wires.contains(pin_name)) return 1;
+
+        uint32_t w = 1;
+        for (const auto& dim_str : p_bp.wires.at(pin_name).dims) {
+            auto it = std::ranges::find(p_bp.generic_params, dim_str);
+            if (it != p_bp.generic_params.end()) {
+                size_t g_idx = std::distance(p_bp.generic_params.begin(), it);
+                if (g_idx < part_args.size()) w *= resolve_value(part_args[g_idx], scope);
+            } else if (p_bp.constants.contains(dim_str)) {
+                w *= interpret_literal(p_bp.constants.at(dim_str));
+            } else {
+                try { w *= resolve_value(dim_str, scope); } catch(...) {}
+            }
+        }
+        return w;
+    }
+
+    static std::optional<uint32_t> get_bundle_width(const Bundle& b, const Scope& scope) {
+        uint32_t total = 0;
+        for (const auto& chunk : b) {
+            if (std::holds_alternative<Literal>(chunk)) {
+                const auto& lit = std::get<Literal>(chunk);
+                uint32_t lw = 1;
+                if (const size_t pos = lit.val.find('\''); pos != std::string::npos) lw = std::stoi(lit.val.substr(0, pos));
+                total += lw * resolve_value(lit.rep_count, scope);
+            } else {
+                const auto& slice = std::get<Slice>(chunk);
+                const uint32_t rep = resolve_value(slice.rep_count, scope);
+
+                if (!slice.lsb.empty() && !slice.msb.empty()) {
+                    total += (std::abs(static_cast<int>(resolve_value(slice.msb, scope)) - static_cast<int>(resolve_value(slice.lsb, scope))) + 1) * rep;
+                } else if (!slice.lsb.empty() || !slice.wire_dims.empty() || slice.wire_name == "_") {
+                    total += 1 * rep;
+                } else {
+                    if (scope.widths.contains(slice.wire_name)) total += scope.widths.at(slice.wire_name) * rep;
+                    else return std::nullopt;
+                }
+            }
+        }
+        return total;
+    }
+
+    static void evaluate_constants(const Blueprint& bp, Scope& scope) {
         for (const auto &[name, value_str]: bp.constants)
             scope.values[name] = resolve_value(value_str, scope);
+    }
 
-        for (const auto &[wire_name, wire]: bp.wires) {
-            if (scope.nets.contains(wire_name)) continue;
-
-            uint32_t total_width = 1;
-            for (const std::string &dim: wire.dims) total_width *= resolve_value(dim, scope);
-
-            if (total_width > Constants::MAX_BUS_WIDTH)
-                throw std::runtime_error("Wire '" + wire_name + "' exceeds " + std::to_string(Constants::MAX_BUS_WIDTH) + "-bit maximum bus width limit (" + std::to_string(total_width) + ").");
-
-            scope.widths[wire_name] = total_width;
-            scope.nets[wire_name] = graph.add_net(total_width);
+    static void seed_io_widths(const Blueprint& bp, Scope& scope) {
+        for (const auto& w_name : bp.in_wires) {
+            uint32_t w = 1;
+            for (const auto& d : bp.wires.at(w_name).dims) w *= resolve_value(d, scope);
+            scope.widths[w_name] = w;
         }
+        for (const auto& w_name : bp.out_wires) {
+            uint32_t w = 1;
+            for (const auto& d : bp.wires.at(w_name).dims) w *= resolve_value(d, scope);
+            scope.widths[w_name] = w;
+        }
+    }
+
+    void infer_implicit_widths(const Blueprint& bp, Scope& scope) const {
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            for (const auto& part : bp.parts) {
+                if (part.type == "__Assign") {
+                    auto out_w = get_bundle_width(part.pins.at("out"), scope);
+                    auto in_w  = get_bundle_width(part.pins.at("in"), scope);
+
+                    auto infer_single = [&](const Bundle& bun, const uint32_t w) {
+                        if (bun.size() == 1 && std::holds_alternative<Slice>(bun[0])) {
+                            const auto& sl = std::get<Slice>(bun[0]);
+                            if (sl.lsb.empty() && sl.msb.empty() && sl.wire_name != "_") {
+                                scope.widths[sl.wire_name] = w / resolve_value(sl.rep_count, scope);
+                                changed = true;
+                            }
+                        }
+                    };
+
+                    if (out_w && !in_w) infer_single(part.pins.at("in"), out_w.value());
+                    else if (in_w && !out_w) infer_single(part.pins.at("out"), in_w.value());
+                    else if (out_w && in_w && out_w.value() != in_w.value())
+                        throw std::runtime_error(std::format("Size mismatch in assignment within '{}': LHS width {}, RHS width {}", bp.name, out_w.value(), in_w.value()));
+                } else {
+                    for (const auto& [pin, bundle] : part.pins) {
+                        if (bundle.empty()) continue;
+                        uint32_t expected_w = get_formal_pin_width(part.type, pin, part.generic_args, scope);
+                        auto b_w = get_bundle_width(bundle, scope);
+
+                        if (!b_w) {
+                            if (bundle.size() == 1 && std::holds_alternative<Slice>(bundle[0])) {
+                                const auto& sl = std::get<Slice>(bundle[0]);
+                                if (sl.lsb.empty() && sl.msb.empty() && sl.wire_name != "_") {
+                                    scope.widths[sl.wire_name] = expected_w / resolve_value(sl.rep_count, scope);
+                                    changed = true;
+                                }
+                            }
+                        } else if (b_w.value() != expected_w)
+                            throw std::runtime_error(std::format("Size mismatch on part '{}' pin '{}' in chip '{}': expected {}, got {}", part.type, pin, bp.name, expected_w, b_w.value()));
+                    }
+                }
+            }
+        }
+
+        // Second-Pass fallback for sliced implicit wires
+        for (const auto& part : bp.parts) {
+            for (const auto &bundle: part.pins | std::views::values) {
+                for (const auto& chunk : bundle) {
+                    if (std::holds_alternative<Slice>(chunk)) {
+                        const auto& sl = std::get<Slice>(chunk);
+                        if (sl.wire_name != "_" && !scope.widths.contains(sl.wire_name)) {
+                            uint32_t mx = 0;
+                            if (!sl.msb.empty()) mx = std::max(mx, static_cast<uint32_t>(resolve_value(sl.msb, scope)));
+                            if (!sl.lsb.empty()) mx = std::max(mx, static_cast<uint32_t>(resolve_value(sl.lsb, scope)));
+                            if (!sl.wire_dims.empty()) mx = std::max(mx, static_cast<uint32_t>(resolve_value(sl.wire_dims[0], scope)));
+                            scope.widths[sl.wire_name] = std::max(scope.widths[sl.wire_name], mx + 1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    static void allocate_physical_nets(const Blueprint& bp, Scope& scope, CompilerGraph& graph) {
+        for (const auto& w_name : bp.wires | std::views::keys) {
+            if (!scope.widths.contains(w_name)) scope.widths[w_name] = 1;
+            if (scope.widths[w_name] > Constants::MAX_BUS_WIDTH)
+                throw std::runtime_error("Wire '" + w_name + "' exceeds " + std::to_string(Constants::MAX_BUS_WIDTH) + "-bit maximum bus width limit (" + std::to_string(scope.widths[w_name]) + ").");
+            scope.nets[w_name] = graph.add_net(scope.widths[w_name]);
+        }
+    }
+
+    void check_liveness_semantics(const Blueprint& bp) const {
+        static std::unordered_set<std::string> warned_blueprints;
+        if (warned_blueprints.contains(bp.name)) return;
+        warned_blueprints.insert(bp.name);
+
+        std::unordered_set<std::string> driven, read;
+        for (const auto& w : bp.in_wires) driven.insert(w);
+        for (const auto& w : bp.out_wires) read.insert(w);
+
+        for (const auto& part : bp.parts) {
+            if (part.type == "__Assign") {
+                for (const auto& chunk : part.pins.at("in")) if (std::holds_alternative<Slice>(chunk)) read.insert(std::get<Slice>(chunk).wire_name);
+                for (const auto& chunk : part.pins.at("out")) if (std::holds_alternative<Slice>(chunk)) driven.insert(std::get<Slice>(chunk).wire_name);
+            } else {
+                const Blueprint& p_bp = library.at(part.type);
+                for (const auto& [pin, bundle] : part.pins) {
+                    const bool is_in = std::ranges::find(p_bp.in_wires, pin) != p_bp.in_wires.end();
+                    const bool is_out = std::ranges::find(p_bp.out_wires, pin) != p_bp.out_wires.end();
+                    for (const auto& chunk : bundle) {
+                        if (std::holds_alternative<Slice>(chunk)) {
+                            const auto& sl = std::get<Slice>(chunk);
+                            if (sl.wire_name == "_") continue;
+                            if (is_in) read.insert(sl.wire_name);
+                            if (is_out) driven.insert(sl.wire_name);
+                        }
+                    }
+                }
+            }
+        }
+
+        for (const auto& w_name : bp.wires | std::views::keys) {
+            if (w_name == "_") continue;
+            if (!driven.contains(w_name)) std::cerr << "[Warning] In " << bp.name << ": Wire '" << w_name << "' is undriven.\n";
+            if (!read.contains(w_name)) std::cerr << "[Warning] In " << bp.name << ": Wire '" << w_name << "' is unused.\n";
+        }
+    }
+
+    void infer_and_allocate_nets(const Blueprint &bp, Scope &scope, CompilerGraph &graph) const {
+        evaluate_constants(bp, scope);
+        seed_io_widths(bp, scope);
+        infer_implicit_widths(bp, scope);
+        allocate_physical_nets(bp, scope, graph);
+        check_liveness_semantics(bp);
     }
 
     static std::unordered_map<std::string, NetID> resolve_part_pins(const std::unordered_map<std::string, Bundle> &pins, const Scope &scope, CompilerGraph &graph) {
@@ -274,7 +436,8 @@ class Builder {
 
     void expand_into_graph(const std::string &chip_type, Scope &scope, CompilerGraph &graph, const int depth, const std::string& inherited_tag = "") const {
         const Blueprint &bp = library.at(chip_type);
-        resolve_blueprint_nets(bp, scope, graph);
+
+        infer_and_allocate_nets(bp, scope, graph);
 
         for (size_t i = 0; i < bp.parts.size(); ++i) {
             const auto &[type, generic_args, pins, tag] = bp.parts[i];

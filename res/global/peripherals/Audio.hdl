@@ -1,0 +1,8 @@
+CHIP Audio<RESOLUTION>
+
+@peripheral
+
+IN
+left[RESOLUTION]    // Instantaneous digital amplitude for the left channel
+right[RESOLUTION]   // Instantaneous digital amplitude for the right channel
+strobe              // 1 = Active/Sample. Tie to 1 for continuous DAC output.

@@ -1,0 +1,28 @@
+CHIP Z80OctalMapper
+
+@const(z80_regs)
+@const(z80_opcodes)
+
+IN octal[3], prefix[8]
+OUT reg16[4], isHigh, isMemory
+
+PARTS
+    Not<1>(in=octal[0], out=isHigh)
+    Eq<3>(a=octal, b=OCT_HL_PTR, out=isMemTarget)
+    isMemory = isMemTarget
+    Add<4>(a={2'b0, octal[1:2]}, b=4'd1, out=baseReg)
+
+    // Detect if the base register is HL (REG16_HL / 3)
+    Eq<4>(a=baseReg, b=REG16_HL, out=isHLBase)
+
+    // Prefix Overrides (IX/IY substitutions)
+    Eq<8>(a=prefix, b=PRE_DD, out=isDD)
+    Eq<8>(a=prefix, b=PRE_FD, out=isFD)
+    And<1>(a=isHLBase, b=isDD, out=overrideIX)
+    And<1>(a=isHLBase, b=isFD, out=overrideIY)
+
+    // Route the override
+    Mux<4>(a=baseReg, b=REG16_IX, sel=overrideIX, out=regWithIX)
+    Mux<4>(a=regWithIX, b=REG16_IY, sel=overrideIY, out=regWithPrefix)
+    Eq<3>(a=octal, b=OCT_A, out=isA)
+    Mux<4>(a=regWithPrefix, b=REG16_AF, sel=isA, out=reg16)

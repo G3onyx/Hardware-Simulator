@@ -1,0 +1,50 @@
+CHIP ZXSpectrum
+
+@toplevel(3500000)
+
+IN
+    reset,
+    ear_in  // Cassette audio input
+
+PARTS
+    Not<1>(in=reset, out=reset_n)
+    Not<1>(in=iorq_n, out=not_iorq)
+    Not<1>(in=rd_n, out=not_rd)
+    And<1>(a=not_iorq, b=not_rd, out=io_read)
+    Mux<8>(a=memDataOut, b=ulaDataOut, sel=io_read, out=cpuDataIn)
+
+    // Initialise mapped CPU
+    Z80(
+        reset_n = reset_n, wait_n = wait_n, int_n = int_n, nmi_n = 1'b1, busrq_n = 1'b1,
+        din = cpuDataIn, dout = cpuDataOut, addr = cpuAddr,
+        mreq_n = mreq_n, iorq_n = iorq_n, rd_n = rd_n, wr_n = wr_n,
+        m1_n = m1_n, rfsh_n = rfsh_n
+    )
+
+    // Initialise Key Inputs
+    Keyboard(low_keys=low_keys, high_keys=high_keys)
+    ULAKeyEncoder(
+        low = low_keys, high = high_keys,
+        addr = cpuAddr[8:15], out = kbRows
+    )
+
+    // Custom ULA
+    ULA48K(
+        cpuAddr = cpuAddr, cpuData = cpuDataOut,
+        mreq_n = mreq_n, iorq_n = iorq_n, rd_n = rd_n, wr_n = wr_n,
+        kbRows = kbRows, earIn = ear_in, vramData = ulaVramData,
+        wait_n = wait_n, int_n = int_n, vramAddr = ulaVramAddr,
+        ulaData = ulaDataOut, micOut = mic_wire, speaker = speaker_wire
+    )
+
+    // Audio mixing
+    Or<1>(a=speaker_wire, b=mic_wire, out=mixed_audio)
+    Audio<1>(left = mixed_audio, right = mixed_audio, strobe = 1'b1)
+
+    // Custom Memory mapping and contention handler
+    Memory48K(
+        cpuAddr = cpuAddr, cpuDataIn = cpuDataOut,
+        mreq_n = mreq_n, rd_n = rd_n, wr_n = wr_n,
+        ulaVramAddr = ulaVramAddr, cpuDataOut = memDataOut,
+        ulaVramData = ulaVramData
+    )

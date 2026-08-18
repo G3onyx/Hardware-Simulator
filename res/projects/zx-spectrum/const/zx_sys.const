@@ -1,0 +1,35 @@
+// ==========================================
+// CHIP CONSTANTS: zx_sys.const
+// ==========================================
+
+// ------------------------------------------
+// 1. Standard Memory Map Thresholds
+// ------------------------------------------
+ROM_START    = 16'x0000;
+VRAM_START   = 16'x4000;
+ATTRIB_START = 16'x5800; // Target for 32x24 color attribute grid
+RAM_START    = 16'x5B00; // General purpose RAM
+
+// ------------------------------------------
+// 2. ULA Standard Palette (32-bit ARGB mapping)
+// ------------------------------------------
+COLOR_BLACK   = 32'xFF_00_00_00;
+COLOR_BLUE    = 32'xFF_00_00_D7;
+COLOR_RED     = 32'xFF_D7_00_00;
+COLOR_MAGENTA = 32'xFF_D7_00_D7;
+COLOR_GREEN   = 32'xFF_00_D7_00;
+COLOR_CYAN    = 32'xFF_00_D7_D7;
+COLOR_YELLOW  = 32'xFF_D7_D7_00;
+COLOR_WHITE   = 32'xFF_D7_D7_D7;
+
+// ------------------------------------------
+// 3. ULA Bright Palette (Attribute Bit 6 = 1)
+// ------------------------------------------
+COLOR_BRIGHT_BLACK   = 32'xFF_00_00_00;
+COLOR_BRIGHT_BLUE    = 32'xFF_00_00_FF;
+COLOR_BRIGHT_RED     = 32'xFF_FF_00_00;
+COLOR_BRIGHT_MAGENTA = 32'xFF_FF_00_FF;
+COLOR_BRIGHT_GREEN   = 32'xFF_00_FF_00;
+COLOR_BRIGHT_CYAN    = 32'xFF_00_FF_FF;
+COLOR_BRIGHT_YELLOW  = 32'xFF_FF_FF_00;
+COLOR_BRIGHT_WHITE   = 32'xFF_FF_FF_FF;

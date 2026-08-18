@@ -11,15 +11,6 @@ writeM          // Write to the Memory?
 addressM[15]    // In which address to write?
 pc[15]          // address of next instruction
 
-WIRES
-isA, isC
-destA, loadA, loadD
-aIn[16], aOut[16]
-aluX[16], aluY[16], aluOut[16]
-pcOut[16]
-zr, ng, pos, ngOrZr
-jlt, jeq, jgt, jle, jumpCond, jump
-
 PARTS
 
 // Instruction decoding

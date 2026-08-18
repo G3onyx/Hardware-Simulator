@@ -7,6 +7,7 @@
 #include <GLFW/glfw3.h>
 
 #include "../testing/AutoTester.h"
+#include "ROMLoader.h"
 #include "Utils.h"
 #include "DynamicChipManager.h"
 
@@ -215,10 +216,10 @@ bool handle_hot_reloading(GLFWwindow* window, DynamicChipManager& chip_manager, 
 
     // Check if a pending async compilation has successfully finished
     if (chip_manager.check_and_swap(config.target_chip)) {
-        const HardwareState info = chip_manager.get_chip()->get_info();
+        IDynamicChip* chip = chip_manager.get_chip();
 
         // Reconfigure the window's aspect ratio and OpenGL texture dimensions for the new chip
-        if (info.has_screen) {
+        if (const HardwareState info = chip->get_info(); info.has_screen) {
             glfwSetWindowAspectRatio(window, static_cast<int>(info.screen_width), static_cast<int>(info.screen_height));
             glBindTexture(GL_TEXTURE_2D, screen_texture);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<int>(info.screen_width), static_cast<int>(info.screen_height), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
@@ -227,10 +228,7 @@ bool handle_hot_reloading(GLFWwindow* window, DynamicChipManager& chip_manager, 
         } else
             glfwSetWindowAspectRatio(window, GLFW_DONT_CARE, GLFW_DONT_CARE);
 
-        if (IDynamicChip* chip = chip_manager.get_chip()) {
-            for (const auto& data : config.rom_map)
-                chip->load_rom(data.first.c_str(), data.second.c_str());
-        }
+        RomLoader::load_all(config, chip);
 
         return true;
     }

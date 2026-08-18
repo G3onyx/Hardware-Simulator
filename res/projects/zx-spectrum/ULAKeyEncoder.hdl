@@ -1,0 +1,73 @@
+CHIP ULAKeyEncoder
+
+@const(keys)
+
+IN low[64], high[64], addr[8]
+OUT out[5]
+
+PARTS
+    Not<1>(in=low[KEY_V], out=r0_4)
+    Not<1>(in=low[KEY_C], out=r0_3)
+    Not<1>(in=low[KEY_X], out=r0_2)
+    Not<1>(in=low[KEY_Z], out=r0_1)
+    Not<1>(in=high[KEY_LEFT_SHIFT], out=r0_0)
+
+    Not<1>(in=low[KEY_G], out=r1_4)
+    Not<1>(in=low[KEY_F], out=r1_3)
+    Not<1>(in=low[KEY_D], out=r1_2)
+    Not<1>(in=low[KEY_S], out=r1_1)
+    Not<1>(in=low[KEY_A], out=r1_0)
+
+    Not<1>(in=low[KEY_T], out=r2_4)
+    Not<1>(in=low[KEY_R], out=r2_3)
+    Not<1>(in=low[KEY_E], out=r2_2)
+    Not<1>(in=low[KEY_W], out=r2_1)
+    Not<1>(in=low[KEY_Q], out=r2_0)
+
+    Not<1>(in=low[KEY_5], out=r3_4)
+    Not<1>(in=low[KEY_4], out=r3_3)
+    Not<1>(in=low[KEY_3], out=r3_2)
+    Not<1>(in=low[KEY_2], out=r3_1)
+    Not<1>(in=low[KEY_1], out=r3_0)
+
+    Not<1>(in=low[KEY_6], out=r4_4)
+    Not<1>(in=low[KEY_7], out=r4_3)
+    Not<1>(in=low[KEY_8], out=r4_2)
+    Not<1>(in=low[KEY_9], out=r4_1)
+    Not<1>(in=low[KEY_0], out=r4_0)
+
+    Not<1>(in=low[KEY_Y], out=r5_4)
+    Not<1>(in=low[KEY_U], out=r5_3)
+    Not<1>(in=low[KEY_I], out=r5_2)
+    Not<1>(in=low[KEY_O], out=r5_1)
+    Not<1>(in=low[KEY_P], out=r5_0)
+
+    Not<1>(in=low[KEY_H], out=r6_4)
+    Not<1>(in=low[KEY_J], out=r6_3)
+    Not<1>(in=low[KEY_K], out=r6_2)
+    Not<1>(in=low[KEY_L], out=r6_1)
+    Not<1>(in=low[KEY_ENTER], out=r6_0)
+
+    Not<1>(in=low[KEY_B], out=r7_4)
+    Not<1>(in=low[KEY_N], out=r7_3)
+    Not<1>(in=low[KEY_M], out=r7_2)
+    Not<1>(in=high[KEY_LEFT_CONTROL], out=r7_1)
+    Not<1>(in=low[KEY_SPACE], out=r7_0)
+
+    // Using CONCAT braces {} dynamically resolves to a valid 5-bit bus net
+    Mux<5>(a={r0_4, r0_3, r0_2, r0_1, r0_0}, b=5'b11111, sel=addr[0], out=act0)
+    Mux<5>(a={r1_4, r1_3, r1_2, r1_1, r1_0}, b=5'b11111, sel=addr[1], out=act1)
+    Mux<5>(a={r2_4, r2_3, r2_2, r2_1, r2_0}, b=5'b11111, sel=addr[2], out=act2)
+    Mux<5>(a={r3_4, r3_3, r3_2, r3_1, r3_0}, b=5'b11111, sel=addr[3], out=act3)
+    Mux<5>(a={r4_4, r4_3, r4_2, r4_1, r4_0}, b=5'b11111, sel=addr[4], out=act4)
+    Mux<5>(a={r5_4, r5_3, r5_2, r5_1, r5_0}, b=5'b11111, sel=addr[5], out=act5)
+    Mux<5>(a={r6_4, r6_3, r6_2, r6_1, r6_0}, b=5'b11111, sel=addr[6], out=act6)
+    Mux<5>(a={r7_4, r7_3, r7_2, r7_1, r7_0}, b=5'b11111, sel=addr[7], out=act7)
+
+    And<5>(a=act0, b=act1, out=and01)
+    And<5>(a=act2, b=act3, out=and23)
+    And<5>(a=act4, b=act5, out=and45)
+    And<5>(a=act6, b=act7, out=and67)
+    And<5>(a=and01, b=and23, out=and0123)
+    And<5>(a=and45, b=and67, out=and4567)
+    And<5>(a=and0123, b=and4567, out=out)

@@ -1,0 +1,34 @@
+// ==========================================
+// CHIP CONSTANTS: z80_alu.const
+// ==========================================
+
+// ------------------------------------------
+// 1. 8-Bit ALU Math (Matches 'y' field exactly)
+// ------------------------------------------
+ALU_ADD = 4'd0;
+ALU_ADC = 4'd1; // Add with Carry
+ALU_SUB = 4'd2;
+ALU_SBC = 4'd3; // Subtract with Carry
+ALU_AND = 4'd4;
+ALU_XOR = 4'd5;
+ALU_OR  = 4'd6;
+ALU_CP  = 4'd7; // Compare (Subtract without persisting result)
+
+// ------------------------------------------
+// 2. Shift and Rotate (Prefix CB)
+// ------------------------------------------
+ALU_RLC = 4'd8;  // Rotate Left Circular
+ALU_RRC = 4'd9;  // Rotate Right Circular
+ALU_RL  = 4'd10; // Rotate Left through Carry
+ALU_RR  = 4'd11; // Rotate Right through Carry
+ALU_SLA = 4'd12; // Shift Left Arithmetic
+ALU_SRA = 4'd13; // Shift Right Arithmetic
+ALU_SLL = 4'd14; // Shift Left Logical (Undocumented Z80 quirk)
+ALU_SRL = 4'd15; // Shift Right Logical
+
+// ------------------------------------------
+// 3. Bitwise Evaluation Limits
+// ------------------------------------------
+BIT_TEST  = 2'b01; // CB prefix, x=1
+BIT_RESET = 2'b10; // CB prefix, x=2
+BIT_SET   = 2'b11; // CB prefix, x=3
