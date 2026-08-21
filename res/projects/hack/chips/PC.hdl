@@ -4,7 +4,7 @@ IN in[16], inc, load, reset
 OUT out[16]
 
 PARTS
-Add<16>(a=mem, b=16'd1, out=incMem) // Inc16(in=mem, out=incMem)
+Add<16>(a=mem, b=16'd1, out=incMem)
 
 Mux<16>(a=mem, b=incMem, sel=inc, out=w1) // Increment memory if inc
 Mux<16>(a=w1, b=in, sel=load, out=w2)     // Replace memory if load

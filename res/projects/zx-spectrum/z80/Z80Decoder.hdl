@@ -3,7 +3,7 @@ CHIP Z80Decoder
 @const(z80_opcodes)
 @const(z80_alu)
 
-IN IR[8], prefix[8]
+IN ir[8], prefix[8]
 
 OUT
     isPrefix, isLoad8, isLoad8Imm, isALU8, isALUImm, isLoad16Imm, isPushPop, isMemWrite, isJump,
@@ -11,23 +11,23 @@ OUT
     isCondJump, is16BitMath, isWriteToMem
 
 PARTS
-    opX = IR[6:7]
-    opY = IR[3:5]
-    opZ = IR[0:2]
-    opQ = IR[3]
+    opX = ir[6:7]
+    opY = ir[3:5]
+    opZ = ir[0:2]
+    opQ = ir[3]
 
     // Prefix detection
-    Eq<8>(a=IR, b=PRE_CB, out=isCB)
-    Eq<8>(a=IR, b=PRE_DD, out=isDD)
-    Eq<8>(a=IR, b=PRE_ED, out=isED)
-    Eq<8>(a=IR, b=PRE_FD, out=isFD)
+    Eq<8>(a=ir, b=PRE_CB, out=isCB)
+    Eq<8>(a=ir, b=PRE_DD, out=isDD)
+    Eq<8>(a=ir, b=PRE_ED, out=isED)
+    Eq<8>(a=ir, b=PRE_FD, out=isFD)
     Or<1>(a=isCB, b=isDD, out=p1)
     Or<1>(a=isED, b=isFD, out=p2)
     Or<1>(a=p1, b=p2, out=isPrefix)
 
     // Load instructions
     Eq<2>(a=opX, b=BLOCK_LD8, out=isLoad8Block)
-    Eq<8>(a=IR, b=OP_HALT, out=isHalt)
+    Eq<8>(a=ir, b=OP_HALT, out=isHalt)
     Not<1>(in=isHalt, out=notHalt)
     And<1>(a=isLoad8Block, b=notHalt, out=isLoad8)
     Eq<3>(a=opZ, b=3'd6, out=isZ6)
@@ -58,14 +58,14 @@ PARTS
 
     // Memory writes
     And<1>(a=isLoad8Block, b=isZ6, out=isMemW1)
-    Eq<8>(a=IR, b=8'x32, out=isMemW2)
+    Eq<8>(a=ir, b=8'x32, out=isMemW2)
     Or<1>(a=isMemW1, b=isMemW2, out=isMemWrite)
     isWriteToMem = isMemWrite
 
     // Jumps and Subroutines
-    Eq<8>(a=IR, b=8'xC3, out=isJP)
-    Eq<8>(a=IR, b=8'xCD, out=isCALL)
-    Eq<8>(a=IR, b=8'xC9, out=isRET)
+    Eq<8>(a=ir, b=8'xC3, out=isJP)
+    Eq<8>(a=ir, b=8'xCD, out=isCALL)
+    Eq<8>(a=ir, b=8'xC9, out=isRET)
     Or<1>(a=isJP, b=isCALL, out=jmpOrCall)
     Or<1>(a=jmpOrCall, b=isRET, out=isJump)
 
@@ -77,16 +77,16 @@ PARTS
     reqM2_Write = isMemWrite
 
     // I/O & Exchange
-    Eq<8>(a=IR, b=8'xDB, out=isDB)
-    Eq<8>(a=IR, b=8'xD3, out=isD3)
+    Eq<8>(a=ir, b=8'xDB, out=isDB)
+    Eq<8>(a=ir, b=8'xD3, out=isD3)
     Eq<3>(a=opZ, b=3'd0, out=isZ0)
     And<1>(a=isED, b=isZ0, out=isED_Z0)
     And<1>(a=isED, b=isZ1, out=isED_Z1)
     Or<1>(a=isDB, b=isED_Z0, out=isIORead)
     Or<1>(a=isD3, b=isED_Z1, out=isIOWrite)
 
-    Eq<8>(a=IR, b=8'x08, out=is08)
-    Eq<8>(a=IR, b=8'xD9, out=isD9)
+    Eq<8>(a=ir, b=8'x08, out=is08)
+    Eq<8>(a=ir, b=8'xD9, out=isD9)
     isExAF = is08
     isExx  = isD9
 

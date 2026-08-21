@@ -1,0 +1,19 @@
+{
+  "name": "my-hdl",
+  "version": "1.0.0",
+  "contributes": {
+    "languages": [
+      {
+        "id": "hdl",
+        "extensions": [".hdl", ".const"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "hdl",
+        "scopeName": "source.hdl",
+        "path": "hdl.tmLanguage.json"
+      }
+    ]
+  }
+}

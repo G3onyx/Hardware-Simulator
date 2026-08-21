@@ -17,7 +17,7 @@ OUT
 
 PARTS
     Z80Decoder(
-        IR=IR, prefix=PR, isPrefix=isPrefix, isLoad8=isLoad8, isLoad8Imm=isLoad8Imm,
+        ir=ir, prefix=pr, isPrefix=isPrefix, isLoad8=isLoad8, isLoad8Imm=isLoad8Imm,
         isALU8=isALU8, isALUImm=isALUImm, isLoad16Imm=isLoad16Imm,
         isPushPop=isPushPop, isMemWrite=isMemWrite, isJump=isJump,
         aluOp=aluOp, reqM2_Read=reqM2_Read, reqM3_Read=reqM3_Read,
@@ -25,8 +25,8 @@ PARTS
         isExx=isExx, isExAF=isExAF
     )
 
-    Mux<8>(a=PR, b=IR, sel=isPrefix, out=nextPR)
-    Dff<8>(in=nextPR, out=PR)
+    Mux<8>(a=pr, b=ir, sel=isPrefix, out=nextPR)
+    Dff<8>(in=nextPR, out=pr)
 
     // Hardware Reset & Cold-Boot Anti-Deadlock Logic
     Not<1>(in=reset_n, out=isReset)
@@ -79,11 +79,11 @@ PARTS
     Dff<1>(in=nextIntState, out=intTriggered)
     And<1>(a=isM1, b=isT3, out=grabIR)
     Mux<8>(a=din, b=8'xFF, sel=intTriggered, out=fetchData)
-    Mux<8>(a=IR, b=fetchData, sel=grabIR, out=nextIR)
-    Dff<8>(in=nextIR, out=IR)
+    Mux<8>(a=ir, b=fetchData, sel=grabIR, out=nextIR)
+    Dff<8>(in=nextIR, out=ir)
 
-    Z80OctalMapper(octal=IR[3:5], prefix=PR, reg16=destReg, isHigh=destHigh, isMemory=destMem)
-    Z80OctalMapper(octal=IR[0:2], prefix=PR, reg16=srcReg,  isHigh=srcHigh,  isMemory=srcMem)
+    Z80OctalMapper(octal=ir[3:5], prefix=pr, reg16=destReg, isHigh=destHigh, isMemory=destMem)
+    Z80OctalMapper(octal=ir[0:2], prefix=pr, reg16=srcReg,  isHigh=srcHigh,  isMemory=srcMem)
 
     Or<1>(a=isT1, b=isT2, out=isT1orT2)
     Or<1>(a=isT1orT2, b=isT3, out=isT1toT3)
@@ -120,8 +120,8 @@ PARTS
     And<1>(a=endM3_cycle, b=isLoad16Imm, out=exec_LD16)
 
     And<1>(a=isM2, b=isT3, out=grabM2)
-    Mux<16>(a=TempZ, b={8'd0, din}, sel=grabM2, out=nextTempZ)
-    Dff<16>(in=nextTempZ, out=TempZ)
+    Mux<16>(a=tempZ, b={8'd0, din}, sel=grabM2, out=nextTempZ)
+    Dff<16>(in=nextTempZ, out=tempZ)
 
     Or<1>(a=exec_LD8, b=exec_ALU8, out=write_8bit)
     Or<1>(a=write_8bit, b=exec_LD16, out=write_target)
@@ -139,7 +139,7 @@ PARTS
     Mux<8>(a=src8, b=aluOut, sel=exec_ALU8, out=result8)
 
     Mux<16>(a={regA[8:15], result8}, b={result8, nextF}, sel=destHigh, out=dest16_packed)
-    Mux<16>(a=dest16_packed, b={din, TempZ[0:7]}, sel=exec_LD16, out=final_write_data)
+    Mux<16>(a=dest16_packed, b={din, tempZ[0:7]}, sel=exec_LD16, out=final_write_data)
     Add<16>(a=regA, b=16'd1, out=pcPlus1)
 
     // Core logic interception for overriding PC data with zero

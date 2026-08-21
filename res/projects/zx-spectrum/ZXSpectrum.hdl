@@ -3,7 +3,7 @@ CHIP ZXSpectrum
 @toplevel(3500000)
 
 IN
-    reset,
+    reset
     ear_in  // Cassette audio input
 
 PARTS

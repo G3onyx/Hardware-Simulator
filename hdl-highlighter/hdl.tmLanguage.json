@@ -1,0 +1,75 @@
+{
+  "name": "My HDL",
+  "scopeName": "source.hdl",
+  "fileTypes": ["hdl", "const"],
+  "patterns": [
+    {
+      "match": "//.*",
+      "name": "comment.line.double-slash.hdl"
+    },
+    {
+      "begin": "/\\*",
+      "end": "\\*/",
+      "name": "comment.block.hdl"
+    },
+    {
+      "match": "\\b(CHIP)\\s+([A-Z][a-zA-Z0-9_]+)",
+      "captures": {
+        "1": { "name": "keyword.control.hdl" },
+        "2": { "name": "entity.name.function.hdl" }
+      }
+    },
+    {
+      "begin": "(@[a-zA-Z][a-zA-Z0-9_]*)\\s*(\\()",
+      "beginCaptures": {
+        "1": { "name": "entity.name.tag.hdl" },
+        "2": { "name": "entity.name.tag.hdl" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "entity.name.tag.hdl" }
+      },
+      "contentName": "meta.tag.content.hdl",
+      "patterns": [
+        { "include": "$self" }
+      ]
+    },
+    {
+      "match": "@[a-zA-Z][a-zA-Z0-9_]*",
+      "name": "entity.name.tag.hdl"
+    },
+    {
+      "match": "\\b(IN|OUT|PARTS|CONST)\\b",
+      "name": "keyword.control.hdl"
+    },
+    {
+      "match": "\\b\\d+'[bBdDxX][0-9a-fA-F_]+\\b|\\b\\d+\\b",
+      "name": "constant.numeric.hdl"
+    },
+    {
+      "match": "\\b([A-Z][a-zA-Z0-9_]*)\\b(?=\\s*[<(])",
+      "name": "entity.name.function.hdl"
+    },
+    {
+      "match": "\\b([A-Z][a-zA-Z0-9_]*)\\b",
+      "name": "constant.other.hdl"
+    },
+    {
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [
+        {
+          "match": "\\b([a-z][a-zA-Z0-9_]*)\\b(?=\\s*(?:\\[[^\\]]*\\])?\\s*=)",
+          "name": "comment.line.hdl"
+        },
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    {
+      "match": "[;,]",
+      "name": "comment.line.hdl"
+    }
+  ]
+}

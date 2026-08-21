@@ -58,7 +58,8 @@ PARTS
     Screen<256, 192>(
         x = {8'd0, xCount[2:6], 3'b000}, y = {7'd0, yCount[0:8]},
         data = {56'd0, vramData}, span = 8'd8,
-        fg = 32'xFF_FF_FF_FF, bg = 32'xFF_00_00_00, draw = isDrawing
+        fg = 32'xFF_FF_FF_FF, bg = 32'xFF_00_00_00,
+        draw = isDrawing
     )
 
     // Precise Memory Contention Stalling

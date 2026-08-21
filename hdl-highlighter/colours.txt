@@ -1,0 +1,9 @@
+// CLion Darcula Dark Theme - TextMate Palette Mapping
+
+Grey   (Comments, Semicolons, Commas) : comment.line
+Orange (Keywords: IN, OUT, PARTS)     : keyword.control
+Cyan   (Numbers: 1026, 3'd6, 4'xfF)   : constant.numeric
+Pink   (Constants, Generic variables) : constant.other
+Blue   (Chip Names)                   : entity.name.function
+Yellow (Flags and @ Tags)             : entity.name.tag
+Green  (Pin Names / LHS of equals)    : string

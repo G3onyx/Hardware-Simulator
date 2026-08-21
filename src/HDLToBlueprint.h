@@ -70,26 +70,22 @@ class HDLToBlueprint final : public HDLBaseVisitor {
         if (ctx->UNDERSCORE())
             return Slice{"_", {}, "", "", "1"};
 
-        if (const std::string name = ctx->slice()->signal()->name->getText(); is_constant_or_generic(name))
-            throw std::runtime_error("Invalid assignment: Cannot assign data to constant or generic '" + name + "'");
-
         return make_slice(ctx->slice());
     }
 
     Chunk evaluate_rhs_item(HDLParser::RhsItemContext *ctx) const {
-        if (ctx->LITERAL())
-            return Literal{ctx->LITERAL()->getText(), "1"};
+        if (ctx->number()) {
+            const std::string text = ctx->number()->getText();
 
-        if (ctx->slice()) {
-            const std::string name = ctx->slice()->signal()->name->getText();
+            if (bp.constants.contains(text))
+                return Literal{bp.constants.at(text), "1"};
+            if (std::ranges::find(bp.generic_params, text) != bp.generic_params.end())
+                return Literal{text, "1"};
 
-            if (bp.constants.contains(name))
-                return Literal{bp.constants.at(name), "1"};
-            if (std::ranges::find(bp.generic_params, name) != bp.generic_params.end())
-                return Literal{name, "1"};
-
-            return make_slice(ctx->slice());
+            return Literal{text, "1"};
         }
+
+        if (ctx->slice()) return make_slice(ctx->slice());
 
         // Must be replication rule
         const auto rep = ctx->replication();
@@ -97,13 +93,6 @@ class HDLToBlueprint final : public HDLBaseVisitor {
 
         if (rep->val->LITERAL())
             return Literal{rep->val->LITERAL()->getText(), count};
-
-        const std::string name = rep->val->slice()->signal()->name->getText();
-
-        if (bp.constants.contains(name))
-            return Literal{bp.constants.at(name), count};
-        if (std::ranges::find(bp.generic_params, name) != bp.generic_params.end())
-            return Literal{name, count};
 
         return make_slice(rep->val->slice(), count);
     }
@@ -161,10 +150,10 @@ public:
     }
 
     antlrcpp::Any visitConstSection(HDLParser::ConstSectionContext *ctx) override {
-        for (HDLParser::ConstDefContext *const_ctx : ctx->constants) {
-            const std::string name = const_ctx->ID()->getText();
+        for (const HDLParser::ConstDefContext *const_ctx : ctx->constants) {
+            const std::string name = const_ctx->name->getText();
             require_unique_name(name);
-            bp.constants[name] = const_ctx->number()->getText();
+            bp.constants[name] = const_ctx->value->getText();
         }
         return nullptr;
     }
@@ -186,7 +175,6 @@ public:
         }
         return nullptr;
     }
-
 
     // PARTS
 
