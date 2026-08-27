@@ -615,7 +615,11 @@ private:
         out << "            chip.update_sequential();\n";
         out << "        }\n";
         out << "        chip.update_combinational();\n";
-        out << "    }\n};\n\n";
+        out << "    }\n";
+
+        out << "    void update_combinational() override { chip.update_combinational(); }\n";
+        out << "    void update_sequential() override { chip.update_sequential(); }\n";
+        out << "};\n\n";
 
         out << "extern \"C\" __declspec(dllexport) IDynamicChip* create_chip() { return new DynamicWrapper(); }\n";
         out << "extern \"C\" __declspec(dllexport) void destroy_chip(const IDynamicChip* ptr) { delete ptr; }\n";

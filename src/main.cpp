@@ -10,6 +10,7 @@
 #include "ROMLoader.h"
 #include "Utils.h"
 #include "DynamicChipManager.h"
+#include "ScriptEngine.h"
 
 
 struct KeyboardDriver {
@@ -286,7 +287,7 @@ struct PerformanceAnalyzer {
             const double safe_elapsed = std::max(elapsed.count(), 0.0001);
 
             double current_fps = frames_this_interval / safe_elapsed;
-            double current_mhz = (cycles_this_interval / safe_elapsed) / 1000000.0;
+            double current_mhz = (static_cast<double>(cycles_this_interval) / safe_elapsed) / 1000000.0;
             double sim_load_pct = std::clamp((sim_time_this_interval / safe_elapsed) * 100.0, 0.0, 100.0);
 
             if (is_paused) {
@@ -423,92 +424,104 @@ int main([[maybe_unused]] const int argc, char *argv[]) {
     GLuint screen_texture = 0;
     glGenTextures(1, &screen_texture);
 
+
     DynamicChipManager chip_manager;
-    chip_manager.request_load(config.target_chip, exe_dir, config.search_paths);
 
-    // Performance analyzer and simulation state
-    PerformanceAnalyzer analyzer;
-    auto last_frame_time = std::chrono::high_resolution_clock::now();
-    double cycle_accumulator = 0.0;
-    bool was_F5_pressed = false;
 
-    bool is_paused = false;
-    uint64_t total_cycles = 0;
+    auto interactive_loop = [&] {
+        // Performance analyzer and simulation state
+        PerformanceAnalyzer analyzer;
+        auto last_frame_time = std::chrono::high_resolution_clock::now();
+        double cycle_accumulator = 0.0;
+        bool was_F5_pressed = false;
 
-    bool step_requested = false;
-    bool was_pause_pressed = false;
-    bool was_step_pressed = false;
+        bool is_paused = false;
+        uint64_t total_cycles = 0;
 
-    // Execution loop
-    while (!glfwWindowShouldClose(window)) {
-        auto current_time = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dt = current_time - last_frame_time;
-        last_frame_time = current_time;
+        bool step_requested = false;
+        bool was_pause_pressed = false;
+        bool was_step_pressed = false;
 
-        glfwPollEvents();
+        // Execution loop
+        while (!glfwWindowShouldClose(window)) {
+            auto current_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> dt = current_time - last_frame_time;
+            last_frame_time = current_time;
 
-        // Pausing (Shift + P)
-        const bool shift_pressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
-        const bool p_pressed = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
-        const bool pause_pressed = p_pressed && shift_pressed;
-        if (pause_pressed && !was_pause_pressed) {
-            is_paused = !is_paused;
-            std::cout << "[Simulator] " << (is_paused ? "Paused" : "Resumed") << "\n";
-        }
-        was_pause_pressed = pause_pressed;
+            glfwPollEvents();
 
-        // Stepping (O key, when paused)
-        const bool step_pressed = glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS;
-        if (step_pressed && !was_step_pressed && is_paused) {
-            step_requested = true;
-            std::cout << "[Simulator] Step: " << total_cycles + 1 << "\n";
-        }
-        was_step_pressed = step_pressed;
+            // Pausing (Shift + P)
+            const bool shift_pressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+            const bool p_pressed = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
+            const bool pause_pressed = p_pressed && shift_pressed;
+            if (pause_pressed && !was_pause_pressed) {
+                is_paused = !is_paused;
+                std::cout << "[Simulator] " << (is_paused ? "Paused" : "Resumed") << "\n";
+            }
+            was_pause_pressed = pause_pressed;
 
-        // Handle hot-reloading
-        if (handle_hot_reloading(window, chip_manager, config, exe_dir, was_F5_pressed, screen_texture)) {
-            cycle_accumulator = 0.0;
+            // Stepping (O key, when paused)
+            const bool step_pressed = glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS;
+            if (step_pressed && !was_step_pressed && is_paused) {
+                step_requested = true;
+                std::cout << "[Simulator] Step: " << total_cycles + 1 << "\n";
+            }
+            was_step_pressed = step_pressed;
 
-            is_paused = false;
-            total_cycles = 0;
-        }
+            // Handle hot-reloading
+            if (handle_hot_reloading(window, chip_manager, config, exe_dir, was_F5_pressed, screen_texture)) {
+                cycle_accumulator = 0.0;
 
-        // Prep rendering context
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
-        glClearColor(.1f, .1f, .1f, 1.f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        if (IDynamicChip* active_chip = chip_manager.get_chip()) {
-            const HardwareState info = active_chip->get_info();
-            const double target_hz = info.target_hz > 0.0 ? info.target_hz : config.target_hz;
-            double actual_hz = target_hz;
-
-            if (!is_paused) kb_driver.apply_pins(window, active_chip);
-
-            uint64_t cycles_run = 0;
-            double sim_time_sec = 0.0;
-
-            if (!config.max_speed && target_hz > 0.0) {
-                cycles_run = run_capped_mode(active_chip, target_hz, dt.count(), is_paused, step_requested, cycle_accumulator, kb_driver, window, sim_time_sec);
-            } else {
-                cycles_run = run_uncapped_mode(active_chip, config.target_fps, is_paused, step_requested, kb_driver, actual_hz, current_time, window, sim_time_sec);
-                last_frame_time = std::chrono::high_resolution_clock::now(); // Prevent large dt jump after uncapped sleep
+                is_paused = false;
+                total_cycles = 0;
             }
 
-            total_cycles += cycles_run;
-            analyzer.record_batch(cycles_run, sim_time_sec);
+            // Prep rendering context
+            int display_w, display_h;
+            glfwGetFramebufferSize(window, &display_w, &display_h);
+            glViewport(0, 0, display_w, display_h);
+            glClearColor(.1f, .1f, .1f, 1.f);
+            glClear(GL_COLOR_BUFFER_BIT);
 
-            render_screen(info, screen_texture, cycles_run > 0);
-            analyzer.update_and_report(window, config.target_chip, target_hz, config.target_fps, config.max_speed, is_paused);
+            if (IDynamicChip* active_chip = chip_manager.get_chip()) {
+                const HardwareState info = active_chip->get_info();
+                const double target_hz = info.target_hz > 0.0 ? info.target_hz : config.target_hz;
+                double actual_hz = target_hz;
 
-        } else if (chip_manager.is_busy()) {
-            glfwSetWindowTitle(window, ("Loading " + chip_manager.target_name + "...").c_str());
-            last_frame_time = std::chrono::high_resolution_clock::now();
+                if (!is_paused) kb_driver.apply_pins(window, active_chip);
+
+                uint64_t cycles_run = 0;
+                double sim_time_sec = 0.0;
+
+                if (!config.max_speed && target_hz > 0.0) {
+                    cycles_run = run_capped_mode(active_chip, target_hz, dt.count(), is_paused, step_requested, cycle_accumulator, kb_driver, window, sim_time_sec);
+                } else {
+                    cycles_run = run_uncapped_mode(active_chip, config.target_fps, is_paused, step_requested, kb_driver, actual_hz, current_time, window, sim_time_sec);
+                    last_frame_time = std::chrono::high_resolution_clock::now(); // Prevent large dt jump after uncapped sleep
+                }
+
+                total_cycles += cycles_run;
+                analyzer.record_batch(cycles_run, sim_time_sec);
+
+                render_screen(info, screen_texture, cycles_run > 0);
+                analyzer.update_and_report(window, config.target_chip, target_hz, config.target_fps, config.max_speed, is_paused);
+
+            } else if (chip_manager.is_busy()) {
+                glfwSetWindowTitle(window, ("Loading " + chip_manager.target_name + "...").c_str());
+                last_frame_time = std::chrono::high_resolution_clock::now();
+            }
+
+            glfwSwapBuffers(window);
         }
+    };
 
-        glfwSwapBuffers(window);
+
+    // Main execution logic
+    if (!config.script_path.empty())
+        ScriptEngine::execute(chip_manager, config, exe_dir);
+    else {
+        chip_manager.request_load(config.target_chip, exe_dir, config.search_paths);
+        interactive_loop();
     }
 
     // Cleanup

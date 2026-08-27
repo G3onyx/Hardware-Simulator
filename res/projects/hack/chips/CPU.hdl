@@ -31,9 +31,9 @@ And<1>(a=isC, b=instruction[3], out=writeM)
 
 Mux<16>(a=aluOut, b=instruction, sel=isA, out=aIn)
 
-Register(in=aIn, load=loadA, out=aOut) @ARegister
+Register<16>(in=aIn, load=loadA, out=aOut) @ARegister
 
-Register(in=aluOut, load=loadD, out=aluX) @DRegister
+Register<16>(in=aluOut, load=loadD, out=aluX) @DRegister
 addressM = aOut[0:14]
 
 Mux<16>(a=aOut, b=inM, sel=instruction[12], out=aluY)

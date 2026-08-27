@@ -10,5 +10,5 @@ Mux<16>(a=mem, b=incMem, sel=inc, out=w1) // Increment memory if inc
 Mux<16>(a=w1, b=in, sel=load, out=w2)     // Replace memory if load
 Mux<16>(a=w2, b=16'd0, sel=reset, out=w3) // Zero memory if reset
 
-Register(in=w3, load=1'd1, out=mem)
+Register<16>(in=w3, load=1'd1, out=mem)
 out = mem

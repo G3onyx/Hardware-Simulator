@@ -1,0 +1,1184 @@
+// Register.hdl
+CHIP Register <SIZE>
+
+IN in[SIZE], load
+OUT out[SIZE]
+
+PARTS
+Mux<SIZE>(a=fb, b=in, sel=load, out=mux_out)
+Dff<SIZE>(in=mux_out, out=fb)
+out = fb
+---
+
+// keys.const
+// LOW KEYS
+KEY_A = 0;
+KEY_B = 1;
+KEY_C = 2;
+KEY_D = 3;
+KEY_E = 4;
+KEY_F = 5;
+KEY_G = 6;
+KEY_H = 7;
+KEY_I = 8;
+KEY_J = 9;
+KEY_K = 10;
+KEY_L = 11;
+KEY_M = 12;
+KEY_N = 13;
+KEY_O = 14;
+KEY_P = 15;
+KEY_Q = 16;
+KEY_R = 17;
+KEY_S = 18;
+KEY_T = 19;
+KEY_U = 20;
+KEY_V = 21;
+KEY_W = 22;
+KEY_X = 23;
+KEY_Y = 24;
+KEY_Z = 25;
+
+KEY_0 = 26;
+KEY_1 = 27;
+KEY_2 = 28;
+KEY_3 = 29;
+KEY_4 = 30;
+KEY_5 = 31;
+KEY_6 = 32;
+KEY_7 = 33;
+KEY_8 = 34;
+KEY_9 = 35;
+
+KEY_SPACE = 36;
+KEY_ENTER = 37;
+KEY_BACKSPACE = 38;
+KEY_ESCAPE = 39;
+
+KEY_MINUS = 40;
+KEY_EQUAL = 41;
+KEY_LEFT_BRACKET = 42;
+KEY_RIGHT_BRACKET = 43;
+KEY_SEMICOLON = 44;
+KEY_APOSTROPHE = 45;
+KEY_COMMA = 46;
+KEY_PERIOD = 47;
+KEY_SLASH = 48;
+KEY_GRAVE_ACCENT = 49;
+KEY_BACKSLASH = 50;
+KEY_TAB = 51;
+
+// HIGH KEYS
+KEY_UP = 0;
+KEY_DOWN = 1;
+KEY_LEFT = 2;
+KEY_RIGHT = 3;
+
+KEY_LEFT_SHIFT = 4;
+KEY_RIGHT_SHIFT = 5;
+
+KEY_LEFT_CONTROL = 6;
+KEY_RIGHT_CONTROL = 7;
+
+KEY_LEFT_ALT = 8;
+KEY_RIGHT_ALT = 9;
+
+KEY_F1 = 10;
+KEY_F2 = 11;
+KEY_F3 = 12;
+KEY_F4 = 13;
+KEY_F5 = 14;
+KEY_F6 = 15;
+KEY_F7 = 16;
+KEY_F8 = 17;
+KEY_F9 = 18;
+KEY_F10 = 19;
+KEY_F11 = 20;
+KEY_F12 = 21;
+
+KEY_HOME = 22;
+KEY_END = 23;
+KEY_PAGE_UP = 24;
+KEY_PAGE_DOWN = 25;
+KEY_INSERT = 26;
+KEY_DELETE = 27;
+KEY_CAPS_LOCK = 28;
+KEY_PAUSE = 29;
+KEY_PRINT_SCREEN = 30;
+KEY_SCROLL_LOCK = 31;
+---
+
+// Audio.hdl
+CHIP Audio<RESOLUTION>
+
+@peripheral
+
+IN
+left[RESOLUTION]    // Instantaneous digital amplitude for the left channel
+right[RESOLUTION]   // Instantaneous digital amplitude for the right channel
+strobe              // 1 = Active/Sample. Tie to 1 for continuous DAC output.
+---
+
+// Keyboard.hdl
+CHIP Keyboard
+
+@peripheral
+
+OUT
+low_keys[64], high_keys[64]
+
+
+---
+
+// Print.hdl
+CHIP Print<SIZE>
+
+@peripheral
+
+IN
+data[SIZE]
+mode[2] // 0 = Char, 1 = Denary, 2 = Hex, 3 = Binary
+write   // Pulse high to execute the print using the active mode
+---
+
+// Screen.hdl
+CHIP Screen<WIDTH, HEIGHT>
+
+@peripheral
+
+IN
+x[16], y[16],
+data[64],
+span[8],
+fg[32], bg[32],
+draw
+---
+
+// Dff.hdl
+CHIP Dff <WIDTH>
+
+@primitive
+
+IN in[WIDTH]
+OUT out[WIDTH]
+---
+
+// Nand.hdl
+CHIP Nand <WIDTH>
+
+@primitive
+
+IN a[WIDTH], b[WIDTH]
+OUT out[WIDTH]
+---
+
+// RAM.hdl
+CHIP RAM <ADDR_SIZE, DATA_SIZE>
+
+@primitive
+
+IN in[DATA_SIZE], address[ADDR_SIZE], load
+OUT out[DATA_SIZE]
+---
+
+// ROM.hdl
+CHIP ROM <ADDR_SIZE, DATA_SIZE>
+
+@primitive
+
+IN address[ADDR_SIZE]
+OUT out[DATA_SIZE]
+---
+
+// ALU.hdl
+CHIP ALU
+
+IN
+phi1, phi2
+sb_bus[8], db_bus[8], adl_bus[8]
+ndb_add, db_add, zero_add, sb_add, adl_add
+sums, ands, eors, ors, srs
+sb_ac
+acin
+
+OUT
+ac_reg[8], add_reg[8]
+acr, avr
+
+PARTS
+// =====================================================================================================================
+// AI LATCH
+// =====================================================================================================================
+Mux<8>(a=ai_reg, b=sb_bus, sel=sb_add, out=ai_mux1)
+Mux<8>(a=ai_mux1, b=8'd0, sel=zero_add, out=ai_next)
+
+Or<1>(a=sb_add, b=zero_add, out=ai_load)
+Register<8>(in=ai_next, load=ai_load, out=ai_reg)
+
+// =====================================================================================================================
+// BI LATCH
+// Note: ndb_add loads the inverted DB bus to perform SBC (Subtraction) via 1's complement
+// =====================================================================================================================
+Not<8>(in=db_bus, out=ndb_bus)
+
+Mux<8>(a=bi_reg, b=adl_bus, sel=adl_add, out=bi_mux1)
+Mux<8>(a=bi_mux1, b=db_bus, sel=db_add, out=bi_mux2)
+Mux<8>(a=bi_mux2, b=ndb_bus, sel=ndb_add, out=bi_next)
+
+Or<1>(a=db_add, b=adl_add, out=bi_load_1)
+Or<1>(a=bi_load_1, b=ndb_add, out=bi_load)
+Register<8>(in=bi_next, load=bi_load, out=bi_reg)
+
+// =====================================================================================================================
+// ACCUMULATOR (AC)
+// Anatomically embedded alongside the ALU; directly catches SB Bus
+// =====================================================================================================================
+Register<8>(in=sb_bus, load=sb_ac, out=ac_reg)
+
+// =====================================================================================================================
+// OPERATIONS
+// =====================================================================================================================
+// 9-Bit Addition for Carry Propagation (AI + BI + CarryIn)
+Add<9>(a={1'b0, ai_reg}, b={1'b0, bi_reg}, out=sum_ab)
+Add<9>(a=sum_ab, b={8'd0, acin}, out=sum_full)
+sum_res = sum_full[0:7]
+c_out = sum_full[8]
+
+// Logical Operations
+And<8>(a=ai_reg, b=bi_reg, out=and_res)
+Or<8>(a=ai_reg, b=bi_reg, out=or_res)
+Xor<8>(a=ai_reg, b=bi_reg, out=xor_res)
+
+// Shift Right (LSR/ROR). The top bit inherits the carry-in flag.
+sr_res = {acin, ai_reg[1:7]}
+
+// =====================================================================================================================
+// OUTPUT MULTIPLEXING & LATCH (ADD_REG)
+// =====================================================================================================================
+Mux<8>(a=8'd0, b=sum_res, sel=sums, out=res_1)
+Mux<8>(a=res_1, b=and_res, sel=ands, out=res_2)
+Mux<8>(a=res_2, b=xor_res, sel=eors, out=res_3)
+Mux<8>(a=res_3, b=or_res, sel=ors, out=res_4)
+Mux<8>(a=res_4, b=sr_res, sel=srs, out=add_next)
+
+Or<1>(a=sums, b=ands, out=add_ld_1)
+Or<1>(a=eors, b=ors, out=add_ld_2)
+Or<1>(a=add_ld_1, b=add_ld_2, out=add_ld_3)
+Or<1>(a=add_ld_3, b=srs, out=add_load)
+
+Register<8>(in=add_next, load=add_load, out=add_reg)
+
+// =====================================================================================================================
+// FLAGS CALCULATION (ACR / AVR)
+// =====================================================================================================================
+// Overflow (V) = ~(A[7] ^ B[7]) & (A[7] ^ Sum[7])
+// Note: For SBC, BI[7] is safely already inverted by ndb_add.
+Xor<1>(a=ai_reg[7], b=bi_reg[7], out=xor_ab7)
+Not<1>(in=xor_ab7, out=nxor_ab7)
+Xor<1>(a=ai_reg[7], b=sum_res[7], out=xor_as7)
+And<1>(a=nxor_ab7, b=xor_as7, out=avr_calc)
+
+// Gate AVR to only output during Addition/Subtraction
+Mux<1>(a=1'b0, b=avr_calc, sel=sums, out=avr)
+
+// Carry (C) outputs arithmetic carry-out on sums, or the shifted-out bit 0 on SRS
+Mux<1>(a=1'b0, b=ai_reg[0], sel=srs, out=acr_srs)
+Mux<1>(a=acr_srs, b=c_out, sel=sums, out=acr)
+---
+
+// CPU.hdl
+CHIP CPU  // MOS 6502 Core
+
+@const(cpu_constants)
+
+IN
+data_in[8]
+_nmi  // Non-maskable interrupt signal
+_irq  // Maskable interrupt signal
+_res  // Reset signal
+phi0  // Reference clock signal
+rdy   // Processor ready (1 = ready)
+so    // Forced setting of the overflow flag (V)
+
+OUT
+addr[16]
+data_out[8]
+phi1  // First half-cycle, processor in writing mode (= ¬phi0)
+phi2  // Second half-cycle, processor in read mode   (=  phi0)
+rw    // Data bus direction (1 = reading, 0 = writing)
+sync  // The processor is on cycle T1 (opcode fetch)
+
+PARTS
+
+// =====================================================================================================================
+// CLOCK GENERATOR
+// =====================================================================================================================
+Not<1>(in=phi0, out=phi1)
+phi2 = phi0
+
+
+// =====================================================================================================================
+// PREDECODE LOGIC: Determines instruction class from PD latch
+// =====================================================================================================================
+
+// Predecode (PD) latch grabs data on PHI2
+Register<8>(in=data_in, load=phi2, out=pd)
+
+// 2-cycle instructions
+Eq<4>(a={pd[4], pd[3], pd[2], pd[0]}, b=MASK_2C_A, out=is_2c_a)
+Eq<5>(a={pd[7], pd[4], pd[3], pd[2], pd[0]}, b=MASK_2C_B, out=is_2c_b)
+// Single-byte instructions
+Eq<3>(a={pd[3], pd[2], pd[0]}, b=MASK_IMPLIED, out=implied)
+// Push/Pull
+Eq<3>(a={pd[7], pd[4], pd[1]}, b=MASK_PUSHPULL, out=is_pushpull)
+Not<1>(in=is_pushpull, out=not_pushpull)
+
+// TWOCYCLE flag
+And<1>(a=implied, b=not_pushpull, out=implied_valid)
+Or<1>(a=is_2c_a, b=is_2c_b, out=is_2c)
+Or<1>(a=is_2c, b=implied_valid, out=twocycle)
+Not<1>(in=twocycle, out=n_twocycle)
+
+
+// =====================================================================================================================
+// INTERRUPT AND BRK SEQUENCE LOGIC
+// =====================================================================================================================
+Not<1>(in=_irq, out=irq)
+Not<1>(in=_nmi, out=nmi)
+Not<1>(in=_res, out=res)
+
+// NMI edge detect: Detects falling edge of _nmi and latches it until interrupt sequence begins
+Dff<1>(in=nmi, out=nmi_sync)
+Not<1>(in=nmi_sync, out=n_nmi_sync)
+And<1>(a=nmi, b=n_nmi_sync, out=nmi_edge)
+
+Or<1>(a=nmi_edge, b=nmi_pending, out=nmi_set)
+Not<1>(in=b_out, out=n_b_out) // Clear pending NMI when B_OUT (interrupt start) fires
+And<1>(a=nmi_set, b=n_b_out, out=next_nmi_pending)
+Dff<1>(in=next_nmi_pending, out=nmi_pending)
+
+// IRQ and reset check
+Not<1>(in=i_flag, out=n_i_flag)
+And<1>(a=irq, b=n_i_flag, out=irq_pending)
+
+// DORES: Synchronized reset flag
+Register<1>(in=res, load=rdy, out=dores)
+
+// Interrupt arrived, so force execution of BRK by injecting 0x00 into the IR
+Or<1>(a=nmi_pending, b=irq_pending, out=any_int)
+Or<1>(a=any_int, b=dores, out=any_int_or_res)
+Register<1>(in=any_int_or_res, load=fetch, out=b_out) // Poll for interrupts at the end of the current instruction (during fetch)
+
+// Interrupt vector address setting
+// Forces lower bits of the ADL bus to 0 to jump to the correct vector
+// FFFA (NMI), FFFC (RESET), FFFE (IRQ/BRK)
+force_adl0 = brk5         // Active during T5 (low byte of vector)
+force_adl1 = dores        // Active for RESET (FFFC)
+force_adl2 = nmi_pending  // Active for NMI (FFFA)
+
+
+// =====================================================================================================================
+// DISPATCHER AND CYCLE COUNTERS
+// =====================================================================================================================
+Not<1>(in=rdy, out=n_rdy)
+
+// An instruction is complete if it's a TWOCYCLE instruction currently in T1
+And<1>(a=twocycle, b=t1, out=ends)  // Reset short instruction cycle counter
+
+Or<1>(a=decoder_endx, b=brk7, out=endx)
+
+Or<1>(a=ends, b=endx, out=fetch)
+
+// Shift register for T0-T1
+Mux<2>(a=state_t, b={t0, 1'b0}, sel=rdy, out=held_or_shifted_t)  // If ready, shift
+Mux<2>(a=held_or_shifted_t, b=STATE_T0, sel=fetch, out=next_t)  // If fetch, force state back to T0
+Dff<2>(in=next_t, out=state_t)
+t0 = state_t[0]
+t1 = state_t[1]
+
+sync = t1
+
+// Extended counter T2-T5: Triggers if T1 completes and it's not a 2-cycle instruction
+And<1>(a=t1, b=n_twocycle, out=start_t2)
+CycleCounter4(in_bit=start_t2, reset=fetch, hold=n_rdy, q0=t2, q1=t3, q2=t4, q3=t5)
+
+// Interrupt sequence counter T6-T7 (BRK6E, BRK7)
+// BRK takes 7 cycles. Trigger cycle 6 from T5 if an interrupt is active (b_out)
+And<1>(a=b_out, b=t5, out=brk5)
+Register<1>(in=brk5, load=rdy, out=brk6e)
+Register<1>(in=brk6e, load=rdy, out=brk7)
+
+
+// =====================================================================================================================
+// INSTRUCTION REGISTER (IR)
+// =====================================================================================================================
+
+// Inject BRK (0x00) opcode for interrupt handling
+Mux<8>(a=pd, b=BRK_OPCODE, sel=b_out, out=opcode)
+
+And(a=fetch, b=phi1, out=ireg_load)
+Register<8>(in=opcode, load=ireg_load, out=ireg) @IRegister
+
+
+// =====================================================================================================================
+// DECODER
+// =====================================================================================================================
+Decoder(
+    ir=ireg
+    n_rdy=n_rdy
+    t0=t0, t1=t1, t2=t2, t3=t3, t4=t4, t5=t5
+    dec_0_63=dec_0_63
+    dec_64_127=dec_64_127
+    dec_128_130=dec_128_130
+)
+
+
+// =====================================================================================================================
+// RANDOM LOGIC
+// =====================================================================================================================
+RandomLogic(
+    // Inputs
+    dec_0_63=dec_0_63, dec_64_127=dec_64_127, dec_128_130=dec_128_130
+    ireg=ireg
+    t0=t0, t1=t1, t2=t2, t3=t3, t4=t4, t5=t5
+    db=db_bus
+    acr=acr, avr=avr
+    nmi_pending=nmi_pending, irq_pending=irq_pending
+    dores=dores, b_out=b_out, so=so, rdy=rdy
+
+    // Feedback and flag outputs
+    endx=decoder_endx
+    i_flag=i_flag
+
+    // Register hashes
+    y_sb=hash_y_sb, x_sb=hash_x_sb, sb_y=hash_sb_y, sb_x=hash_sb_x
+    s_sb=hash_s_sb, s_adl=hash_s_adl, sb_s=hash_sb_s
+
+    // PC hashes
+    adh_pch=hash_adh_pch, pch_adh=hash_pch_adh, pch_db=hash_pch_db
+    adl_pcl=hash_adl_pcl, pcl_adl=hash_pcl_adl, pcl_db=hash_pcl_db
+    inc_pc=hash_inc_pc
+
+    // Bus and pin hashes
+    adh_abh=hash_adh_abh, adl_abl=hash_adl_abl
+    dl_adl=hash_dl_adl, dl_adh=hash_dl_adh, dl_db=hash_dl_db
+    wr=hash_wr
+
+    // ALU/AC hashes
+    sb_ac=hash_sb_ac, ac_sb=hash_ac_sb, ac_db=hash_ac_db
+    add_sb=hash_add_sb, add_adl=hash_add_adl
+    ndb_add=hash_ndb_add, db_add=hash_db_add, zero_add=hash_0_add
+    sb_add=hash_sb_add, adl_add=hash_adl_add
+    acin=acin
+    sums=hash_sums, ands=hash_ands, eors=hash_eors
+    ors=hash_ors, srs=hash_srs
+)
+
+
+// =====================================================================================================================
+// CONTROL COMMAND LATCHES
+// =====================================================================================================================
+Register<1>(in=hash_y_sb,  load=phi2, out=cmd_y_sb)  // Y => SB
+Register<1>(in=hash_x_sb,  load=phi2, out=cmd_x_sb)  // X => SB
+Register<1>(in=hash_sb_y,  load=phi2, out=cmd_sb_y)  // SB => Y
+Register<1>(in=hash_sb_x,  load=phi2, out=cmd_sb_x)  // SB => X
+Register<1>(in=hash_s_sb,  load=phi2, out=cmd_s_sb)  // S => SB
+Register<1>(in=hash_s_adl, load=phi2, out=cmd_s_adl) // S => ADL
+Register<1>(in=hash_sb_s,  load=phi2, out=cmd_sb_s)  // SB => S
+Register<1>(in=hash_p_db, load=phi2, out=cmd_p_db) // P => DB
+
+// The S/S command is active if the SB/S command is inactive
+// This continuously refreshes the S register when it isn't being written to
+Not<1>(in=cmd_sb_s, out=cmd_s_s)
+
+Register<1>(in=hash_adh_pch, load=phi2, out=cmd_adh_pch) // ADH => PCH
+Register<1>(in=hash_pch_adh, load=phi2, out=cmd_pch_adh) // PCH => ADH
+Register<1>(in=hash_pch_db,  load=phi2, out=cmd_pch_db)  // PCH => DB
+Register<1>(in=hash_adl_pcl, load=phi2, out=cmd_adl_pcl) // ADL => PCL
+Register<1>(in=hash_pcl_adl, load=phi2, out=cmd_pcl_adl) // PCL => ADL
+Register<1>(in=hash_pcl_db,  load=phi2, out=cmd_pcl_db)  // PCL => DB
+Register<1>(in=hash_inc_pc,  load=phi2, out=cmd_inc_pc)  // 1 => PC (Abstracted as Active High)
+
+// Address/Data bus latches
+Register<1>(in=hash_adh_abh, load=phi2, out=cmd_adh_abh) // ADH => ABH
+Register<1>(in=hash_adl_abl, load=phi2, out=cmd_adl_abl) // ADL => ABL
+Register<1>(in=hash_dl_adl,  load=phi2, out=cmd_dl_adl)  // DL => ADL
+Register<1>(in=hash_dl_adh,  load=phi2, out=cmd_dl_adh)  // DL => ADH
+Register<1>(in=hash_dl_db,   load=phi2, out=cmd_dl_db)   // DL <=> DB
+Register<1>(in=hash_wr,      load=phi2, out=cmd_wr)      // WR (Write Mode)
+
+// ALU/AC latches
+Register<1>(in=hash_sb_ac,   load=phi2, out=cmd_sb_ac)   // SB => AC
+Register<1>(in=hash_ac_sb,   load=phi2, out=cmd_ac_sb)   // AC => SB
+Register<1>(in=hash_ac_db,   load=phi2, out=cmd_ac_db)   // AC => DB
+Register<1>(in=hash_add_sb,  load=phi2, out=cmd_add_sb)  // ADD => SB (Abstracts ADD/SB06 and ADD/SB7)
+Register<1>(in=hash_add_adl, load=phi2, out=cmd_add_adl) // ADD => ADL
+
+// ALU input and operation
+Register<1>(in=hash_ndb_add, load=phi2, out=cmd_ndb_add)
+Register<1>(in=hash_db_add,  load=phi2, out=cmd_db_add)
+Register<1>(in=hash_0_add,   load=phi2, out=cmd_0_add)
+Register<1>(in=hash_sb_add,  load=phi2, out=cmd_sb_add)
+Register<1>(in=hash_adl_add, load=phi2, out=cmd_adl_add)
+Register<1>(in=hash_sums,    load=phi2, out=cmd_sums)
+Register<1>(in=hash_ands,    load=phi2, out=cmd_ands)
+Register<1>(in=hash_eors,    load=phi2, out=cmd_eors)
+Register<1>(in=hash_ors,     load=phi2, out=cmd_ors)
+Register<1>(in=hash_srs,     load=phi2, out=cmd_srs)
+
+
+// =====================================================================================================================
+// PROGRAM COUNTER (PCL / PCH)
+// =====================================================================================================================
+Add<16>(a={pch_reg, pcl_reg}, b=16'd1, out=pc_inc)  // Incrementer
+
+// PCL routing: Load from ADL, or load from Incrementer
+Mux<8>(a=pcl_reg, b=pc_inc[0:7], sel=cmd_inc_pc, out=pcl_next_inc)
+Mux<8>(a=pcl_next_inc, b=adl_bus, sel=cmd_adl_pcl, out=pcl_next)
+
+// PCH routing: Load from ADH, or load from Incrementer
+Mux<8>(a=pch_reg, b=pc_inc[8:15], sel=cmd_inc_pc, out=pch_next_inc)
+Mux<8>(a=pch_next_inc, b=adh_bus, sel=cmd_adh_pch, out=pch_next)
+
+// Load PCL/PCH during PHI1 if a command was active
+Or<1>(a=cmd_inc_pc, b=cmd_adl_pcl, out=load_pcl)
+And<1>(a=load_pcl, b=phi1, out=load_pcl_phi1)
+Register<8>(in=pcl_next, load=load_pcl_phi1, out=pcl_reg) @PCL
+
+Or<1>(a=cmd_inc_pc, b=cmd_adh_pch, out=load_pch)
+And<1>(a=load_pch, b=phi1, out=load_pch_phi1)
+Register<8>(in=pch_next, load=load_pch_phi1, out=pch_reg) @PCH
+
+
+// =====================================================================================================================
+// REGISTERS (X, Y, S): Loaded during PHI1
+// =====================================================================================================================
+// X Register
+And<1>(a=cmd_sb_x, b=phi1, out=load_x)
+Register<8>(in=sb_bus, load=load_x, out=x_reg) @XRegister
+
+// Y Register
+And<1>(a=cmd_sb_y, b=phi1, out=load_y)
+Register<8>(in=sb_bus, load=load_y, out=y_reg) @YRegister
+
+// S Register (Stack Pointer)
+// The S register can output to both SB and ADL buses simultaneously
+And<1>(a=cmd_sb_s, b=phi1, out=load_s)
+Register<8>(in=sb_bus, load=load_s, out=s_reg) @SRegister
+
+
+// =====================================================================================================================
+// ARITHMETIC LOGIC UNIT (ALU)
+// =====================================================================================================================
+ALU(
+    phi1=phi1, phi2=phi2
+    sb_bus=sb_bus, db_bus=db_bus, adl_bus=adl_bus
+    // Input commands
+    ndb_add=cmd_ndb_add, db_add=cmd_db_add
+    zero_add=cmd_0_add, sb_add=cmd_sb_add, adl_add=cmd_adl_add
+    // Operations
+    sums=cmd_sums, ands=cmd_ands, eors=cmd_eors
+    ors=cmd_ors, srs=cmd_srs
+    // Accumulator specific
+    sb_ac=cmd_sb_ac
+    acin=acin
+    // Outputs
+    ac_reg=ac_reg, add_reg=add_reg
+    acr=acr, avr=avr
+)
+
+
+// =====================================================================================================================
+// EXTERNAL PINS (ADDR, DATA, RW)
+// =====================================================================================================================
+// RW pin (1 = Read, 0 = Write)
+Not<1>(in=cmd_wr, out=cmd_rd)
+rw = cmd_rd
+
+// Interrupts force lower bits of ADL to 0 before hitting ABL to jump to vectors
+Not<1>(in=force_adl0, out=keep_adl0)
+Not<1>(in=force_adl1, out=keep_adl1)
+Not<1>(in=force_adl2, out=keep_adl2)
+
+And<1>(a=adl_bus[0], b=keep_adl0, out=adl0_masked)
+And<1>(a=adl_bus[1], b=keep_adl1, out=adl1_masked)
+And<1>(a=adl_bus[2], b=keep_adl2, out=adl2_masked)
+
+adl_masked = {adl_bus[7], adl_bus[6], adl_bus[5], adl_bus[4], adl_bus[3], adl2_masked, adl1_masked, adl0_masked}
+
+// ABL (Address Bus Low) Register
+And<1>(a=cmd_adl_abl, b=phi1, out=load_abl)
+Register<8>(in=adl_masked, load=load_abl, out=abl_reg) @ABL
+
+// ABH (Address Bus High) Register
+And<1>(a=cmd_adh_abh, b=phi1, out=load_abh)
+Register<8>(in=adh_bus, load=load_abh, out=abh_reg) @ABH
+
+addr = {abh_reg, abl_reg}
+
+// DL (Data Latch): Stores incoming data from external bus during PHI2
+Register<8>(in=data_in, load=phi2, out=dl_reg) @DL
+
+// DOR (Data Output Register): Stores data to be written during PHI1 if WR=1
+And<1>(a=cmd_dl_db, b=cmd_wr, out=write_mode_dl)
+And<1>(a=write_mode_dl, b=phi1, out=load_dor)
+Register<8>(in=db_bus, load=load_dor, out=data_out) @DOR
+
+
+// =====================================================================================================================
+// INTERNAL BUSES: Precharged to 0xFF during PHI2
+// =====================================================================================================================
+// SB Bus (Special Bus)
+Mux<8>(a=BUS_DEFAULT, b=y_reg, sel=cmd_y_sb, out=sb_driven_by_y)
+Mux<8>(a=sb_driven_by_y, b=x_reg, sel=cmd_x_sb, out=sb_driven_by_x)
+Mux<8>(a=sb_driven_by_x, b=s_reg, sel=cmd_s_sb, out=sb_driven_by_s)
+Mux<8>(a=sb_driven_by_s, b=ac_reg, sel=cmd_ac_sb, out=sb_driven_by_ac)
+Mux<8>(a=sb_driven_by_ac, b=add_reg, sel=cmd_add_sb, out=sb_bus)
+
+// ADH Bus (Address High Bus)
+Mux<8>(a=BUS_DEFAULT, b=pch_reg, sel=cmd_pch_adh, out=adh_driven_by_pch)
+Mux<8>(a=adh_driven_by_pch, b=dl_reg, sel=cmd_dl_adh, out=adh_bus)
+
+// ADL Bus (Address Low Bus)
+Mux<8>(a=BUS_DEFAULT, b=s_reg, sel=cmd_s_adl, out=adl_driven_by_s)
+Mux<8>(a=adl_driven_by_s, b=pcl_reg, sel=cmd_pcl_adl, out=adl_driven_by_pcl)
+Mux<8>(a=adl_driven_by_pcl, b=dl_reg, sel=cmd_dl_adl, out=adl_driven_by_dl)
+Mux<8>(a=adl_driven_by_dl, b=add_reg, sel=cmd_add_adl, out=adl_bus)
+
+// DB Bus (Data Bus Internal)
+Mux<8>(a=BUS_DEFAULT, b=pcl_reg, sel=cmd_pcl_db, out=db_driven_by_pcl)
+Mux<8>(a=db_driven_by_pcl, b=pch_reg, sel=cmd_pch_db, out=db_driven_by_pch)
+Mux<8>(a=db_driven_by_pch, b=ac_reg, sel=cmd_ac_db, out=db_driven_by_ac)
+Mux<8>(a=db_driven_by_ac, b=p_reg, sel=cmd_p_db, out=db_driven_by_p)
+
+// DL <=> DB exchange: Only drive DB if reading (cmd_rd)
+And<1>(a=cmd_dl_db, b=cmd_rd, out=read_mode_dl)
+Mux<8>(a=db_driven_by_ac, b=dl_reg, sel=read_mode_dl, out=db_bus)
+---
+
+// CycleCounter4.hdl
+CHIP CycleCounter4
+
+IN
+in_bit  // The shift-in signal
+reset   // Synchronous reset command
+hold    // Pauses the shift
+
+OUT
+q0, q1, q2, q3
+
+PARTS
+// Shift: Append the incoming bit to the bottom of the state chain
+shifted = {state[2], state[1], state[0], in_bit}
+
+// Hold: Pauses the shift on hold
+Mux<4>(a=shifted, b=state, sel=hold, out=state_or_hold)
+
+// Reset: Clears to 0000 on reset
+Mux<4>(a=state_or_hold, b=4'b0000, sel=reset, out=next_state)
+
+// Latch and unpack
+Dff<4>(in=next_state, out=state)
+q0 = state[0]
+q1 = state[1]
+q2 = state[2]
+q3 = state[3]
+---
+
+// Decoder.hdl
+CHIP Decoder
+
+@const(decoder_masks)
+
+IN
+ir[8]
+t0, t1, t2, t3, t4, t5
+n_rdy
+
+OUT
+dec_0_63[64]    // Lines 0 to 63
+dec_64_127[64]  // Lines 64 to 127
+dec_128_130[3]  // Lines 128 to 130
+
+PARTS
+// =====================================================================================================================
+// UNIQUE MASK MATCHES
+// Extracting only the relevant bits defined by the 'X' Don't Care boundaries
+// =====================================================================================================================
+Eq<6>(a={ir[7], ir[6], ir[5], ir[2], ir[1], ir[0]}, b=MASK_M0, out=m0)
+Eq<4>(a={ir[4], ir[3], ir[2], ir[0]}, b=MASK_M1, out=m1)
+Eq<4>(a={ir[4], ir[3], ir[2], ir[0]}, b=MASK_M2, out=m2)
+Eq<7>(a={ir[7], ir[5], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M3, out=m3)
+Eq<8>(a=ir, b=MASK_M4, out=m4)
+Eq<6>(a={ir[7], ir[6], ir[5], ir[4], ir[1], ir[0]}, b=MASK_M5, out=m5)
+Eq<2>(a={ir[4], ir[2]}, b=MASK_M6, out=m6)
+Eq<3>(a={ir[7], ir[6], ir[1]}, b=MASK_M7, out=m7)
+Eq<4>(a={ir[4], ir[3], ir[2], ir[0]}, b=MASK_M8, out=m8)
+Eq<7>(a={ir[7], ir[6], ir[5], ir[4], ir[3], ir[2], ir[1]}, b=MASK_M9, out=m9)
+Eq<7>(a={ir[7], ir[6], ir[5], ir[4], ir[3], ir[2], ir[1]}, b=MASK_M10, out=m10)
+Eq<6>(a={ir[7], ir[6], ir[5], ir[4], ir[1], ir[0]}, b=MASK_M11, out=m11)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[1]}, b=MASK_M12, out=m12)
+Eq<7>(a={ir[7], ir[6], ir[5], ir[4], ir[3], ir[2], ir[1]}, b=MASK_M13, out=m13)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[1]}, b=MASK_M14, out=m14)
+Eq<8>(a=ir, b=MASK_M16, out=m16)
+Eq<7>(a={ir[7], ir[6], ir[5], ir[4], ir[3], ir[2], ir[1]}, b=MASK_M17, out=m17)
+Eq<6>(a={ir[7], ir[6], ir[5], ir[2], ir[1], ir[0]}, b=MASK_M19, out=m19)
+Eq<6>(a={ir[7], ir[6], ir[5], ir[4], ir[1], ir[0]}, b=MASK_M20, out=m20)
+Eq<8>(a=ir, b=MASK_M21, out=m21)
+Eq<8>(a=ir, b=MASK_M22, out=m22)
+Eq<7>(a={ir[7], ir[5], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M23, out=m23)
+Eq<8>(a=ir, b=MASK_M24, out=m24)
+Eq<7>(a={ir[7], ir[5], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M25, out=m25)
+Eq<8>(a=ir, b=MASK_M26, out=m26)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[1]}, b=MASK_M27, out=m27)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[0]}, b=MASK_M29, out=m29)
+Eq<7>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M30, out=m30)
+Eq<3>(a={ir[4], ir[3], ir[2]}, b=MASK_M31, out=m31)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[0]}, b=MASK_M32, out=m32)
+Eq<1>(a=ir[3], b=MASK_M33, out=m33)
+Eq<5>(a={ir[7], ir[4], ir[2], ir[1], ir[0]}, b=MASK_M35, out=m35)
+Eq<4>(a={ir[7], ir[4], ir[1], ir[0]}, b=MASK_M36, out=m36)
+Eq<7>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M37, out=m37)
+Eq<2>(a={ir[4], ir[3]}, b=MASK_M42, out=m42)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[1]}, b=MASK_M44, out=m44)
+Eq<7>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M47, out=m47)
+Eq<5>(a={ir[7], ir[6], ir[4], ir[1], ir[0]}, b=MASK_M49, out=m49)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[0]}, b=MASK_M50, out=m50)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[0]}, b=MASK_M51, out=m51)
+Eq<3>(a={ir[6], ir[5], ir[0]}, b=MASK_M52, out=m52)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[1]}, b=MASK_M53, out=m53)
+Eq<3>(a={ir[7], ir[6], ir[1]}, b=MASK_M55, out=m55)
+Eq<2>(a={ir[7], ir[0]}, b=MASK_M59, out=m59)
+Eq<5>(a={ir[7], ir[4], ir[3], ir[2], ir[1]}, b=MASK_M61, out=m61)
+Eq<8>(a=ir, b=MASK_M63, out=m63)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[0]}, b=MASK_M64, out=m64)
+Eq<1>(a=ir[0], b=MASK_M65, out=m65)
+Eq<8>(a=ir, b=MASK_M66, out=m66)
+Eq<7>(a={ir[7], ir[6], ir[5], ir[4], ir[3], ir[2], ir[1]}, b=MASK_M68, out=m68)
+Eq<7>(a={ir[7], ir[6], ir[5], ir[4], ir[2], ir[1], ir[0]}, b=MASK_M69, out=m69)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[0]}, b=MASK_M70, out=m70)
+Eq<5>(a={ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M73, out=m73)
+Eq<8>(a=ir, b=MASK_M74, out=m74)
+Eq<6>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1]}, b=MASK_M75, out=m75)
+Eq<3>(a={ir[7], ir[6], ir[1]}, b=MASK_M76, out=m76)
+Eq<4>(a={ir[7], ir[6], ir[5], ir[0]}, b=MASK_M79, out=m79)
+Eq<2>(a={ir[3], ir[2]}, b=MASK_M81, out=m81)
+Eq<3>(a={ir[3], ir[2], ir[0]}, b=MASK_M82, out=m82)
+Eq<1>(a=ir[3], b=MASK_M83, out=m83)
+Eq<7>(a={ir[7], ir[5], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M87, out=m87)
+Eq<3>(a={ir[7], ir[6], ir[5]}, b=MASK_M97, out=m97)
+Eq<8>(a=ir, b=MASK_M99, out=m99)
+Eq<8>(a=ir, b=MASK_M104, out=m104)
+Eq<2>(a={ir[6], ir[1]}, b=MASK_M106, out=m106)
+Eq<7>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M108, out=m108)
+Eq<7>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M110, out=m110)
+Eq<3>(a={ir[4], ir[3], ir[2]}, b=MASK_M111, out=m111)
+Eq<8>(a=ir, b=MASK_M114, out=m114)
+Eq<7>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M117, out=m117)
+Eq<6>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1]}, b=MASK_M118, out=m118)
+Eq<6>(a={ir[7], ir[6], ir[4], ir[3], ir[1], ir[0]}, b=MASK_M119, out=m119)
+Eq<7>(a={ir[7], ir[6], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M120, out=m120)
+Eq<1>(a=ir[6], b=MASK_M121, out=m121)
+Eq<3>(a={ir[4], ir[3], ir[2]}, b=MASK_M123, out=m123)
+Eq<1>(a=ir[7], b=MASK_M126, out=m126)
+Eq<8>(a=ir, b=MASK_M127, out=m127)
+Eq<3>(a={ir[3], ir[2], ir[0]}, b=MASK_M128, out=m128)
+Eq<6>(a={ir[7], ir[4], ir[3], ir[2], ir[1], ir[0]}, b=MASK_M129, out=m129)
+
+
+// =====================================================================================================================
+// FULL DECODE STAGE (Lines 0 to 129)
+// =====================================================================================================================
+dec_0 = m0
+And<1>(a=m1, b=t3, out=dec_1)
+And<1>(a=m2, b=t2, out=dec_2)
+And<1>(a=m3, b=t0, out=dec_3)
+And<1>(a=m4, b=t0, out=dec_4)
+And<1>(a=m5, b=t0, out=dec_5)
+And<1>(a=m6, b=t2, out=dec_6)
+dec_7 = m7
+And<1>(a=m8, b=t2, out=dec_8)
+And<1>(a=m9, b=t0, out=dec_9)
+And<1>(a=m10, b=t0, out=dec_10)
+And<1>(a=m11, b=t0, out=dec_11)
+dec_12 = m12
+And<1>(a=m13, b=t0, out=dec_13)
+And<1>(a=m14, b=t0, out=dec_14)
+And<1>(a=m10, b=t1, out=dec_15)
+And<1>(a=m16, b=t1, out=dec_16)
+And<1>(a=m17, b=t0, out=dec_17)
+And<1>(a=m3, b=t1, out=dec_18)
+And<1>(a=m19, b=t0, out=dec_19)
+And<1>(a=m20, b=t0, out=dec_20)
+And<1>(a=m21, b=t0, out=dec_21)
+And<1>(a=m22, b=t5, out=dec_22)
+And<1>(a=m23, b=t0, out=dec_23)
+And<1>(a=m24, b=t4, out=dec_24)
+And<1>(a=m25, b=t3, out=dec_25)
+And<1>(a=m26, b=t5, out=dec_26)
+dec_27 = m27
+dec_28 = t2
+And<1>(a=m29, b=t0, out=dec_29)
+dec_30 = m30
+And<1>(a=m31, b=t2, out=dec_31)
+And<1>(a=m32, b=t0, out=dec_32)
+And<1>(a=m33, b=t2, out=dec_33)
+dec_34 = t0
+And<1>(a=m35, b=t2, out=dec_35)
+And<1>(a=m36, b=t3, out=dec_36)
+And<1>(a=m37, b=t4, out=dec_37)
+And<1>(a=m26, b=t4, out=dec_38)
+And<1>(a=m8, b=t3, out=dec_39)
+And<1>(a=m1, b=t4, out=dec_40)
+And<1>(a=m1, b=t2, out=dec_41)
+And<1>(a=m42, b=t3, out=dec_42)
+dec_43 = m25
+dec_44 = m44
+And<1>(a=m8, b=t4, out=dec_45)
+And<1>(a=m1, b=t3, out=dec_46)
+dec_47 = m47
+And<1>(a=m21, b=t2, out=dec_48)
+And<1>(a=m49, b=t0, out=dec_49)
+And<1>(a=m50, b=t0, out=dec_50)
+And<1>(a=m51, b=t0, out=dec_51)
+And<1>(a=m52, b=t0, out=dec_52)
+dec_53 = m53
+And<1>(a=m30, b=t3, out=dec_54)
+dec_55 = m55
+And<1>(a=m21, b=t5, out=dec_56)
+And<1>(a=m35, b=t2, out=dec_57)
+And<1>(a=m4, b=t0, out=dec_58)
+And<1>(a=m59, b=t1, out=dec_59)
+And<1>(a=m52, b=t1, out=dec_60)
+And<1>(a=m61, b=t1, out=dec_61)
+And<1>(a=m9, b=t0, out=dec_62)
+And<1>(a=m63, b=t0, out=dec_63)
+And<1>(a=m64, b=t0, out=dec_64)
+And<1>(a=m65, b=t0, out=dec_65)
+And<1>(a=m66, b=t0, out=dec_66)
+And<1>(a=m61, b=t0, out=dec_67)
+And<1>(a=m68, b=t0, out=dec_68)
+And<1>(a=m69, b=t0, out=dec_69)
+And<1>(a=m70, b=t0, out=dec_70)
+And<1>(a=m42, b=t4, out=dec_71)
+And<1>(a=m1, b=t5, out=dec_72)
+
+// Decoder X73 is uniquely affected by /PRDY
+And<1>(a=m73, b=t0, out=dec_73_raw)
+And<1>(a=dec_73_raw, b=n_rdy, out=dec_73)
+
+And<1>(a=m74, b=t2, out=dec_74)
+And<1>(a=m75, b=t0, out=dec_75)
+dec_76 = m76
+And<1>(a=m22, b=t2, out=dec_77)
+And<1>(a=m21, b=t3, out=dec_78)
+dec_79 = m79
+And<1>(a=m73, b=t2, out=dec_80)
+And<1>(a=m81, b=t2, out=dec_81)
+And<1>(a=m82, b=t2, out=dec_82)
+And<1>(a=m83, b=t2, out=dec_83)
+And<1>(a=m24, b=t5, out=dec_84)
+dec_85 = t4
+dec_86 = t3
+And<1>(a=m87, b=t0, out=dec_87)
+And<1>(a=m30, b=t0, out=dec_88)
+And<1>(a=m8, b=t5, out=dec_89)
+And<1>(a=m83, b=t3, out=dec_90)
+And<1>(a=m1, b=t4, out=dec_91)
+And<1>(a=m42, b=t3, out=dec_92)
+And<1>(a=m73, b=t3, out=dec_93)
+dec_94 = m87
+dec_95 = m21
+dec_96 = m30
+dec_97 = m97
+And<1>(a=m22, b=t4, out=dec_98)
+And<1>(a=m99, b=t2, out=dec_99)
+And<1>(a=m23, b=t2, out=dec_100)
+And<1>(a=m30, b=t4, out=dec_101)
+And<1>(a=m47, b=t5, out=dec_102)
+And<1>(a=m21, b=t5, out=dec_103)
+And<1>(a=m104, b=t2, out=dec_104)
+And<1>(a=m25, b=t3, out=dec_105)
+dec_106 = m106
+dec_107 = m55
+And<1>(a=m108, b=t0, out=dec_108)
+And<1>(a=m69, b=t1, out=dec_109)
+And<1>(a=m110, b=t0, out=dec_110)
+And<1>(a=m111, b=t3, out=dec_111)
+And<1>(a=m52, b=t1, out=dec_112)
+And<1>(a=m69, b=t0, out=dec_113)
+And<1>(a=m114, b=t0, out=dec_114)
+And<1>(a=m26, b=t4, out=dec_115)
+And<1>(a=m50, b=t1, out=dec_116)
+And<1>(a=m117, b=t1, out=dec_117)
+And<1>(a=m118, b=t1, out=dec_118)
+And<1>(a=m119, b=t1, out=dec_119)
+And<1>(a=m120, b=t0, out=dec_120)
+dec_121 = m121
+And<1>(a=m31, b=t3, out=dec_122)
+And<1>(a=m123, b=t2, out=dec_123)
+And<1>(a=m82, b=t5, out=dec_124)
+And<1>(a=m42, b=t4, out=dec_125)
+dec_126 = m126
+dec_127 = m127
+dec_128 = m128
+dec_129 = m129
+
+
+// =====================================================================================================================
+// BUS OUTPUT AGGREGATION
+// =====================================================================================================================
+dec_0_63 = {
+    dec_63, dec_62, dec_61, dec_60, dec_59, dec_58, dec_57, dec_56,
+    dec_55, dec_54, dec_53, dec_52, dec_51, dec_50, dec_49, dec_48,
+    dec_47, dec_46, dec_45, dec_44, dec_43, dec_42, dec_41, dec_40,
+    dec_39, dec_38, dec_37, dec_36, dec_35, dec_34, dec_33, dec_32,
+    dec_31, dec_30, dec_29, dec_28, dec_27, dec_26, dec_25, dec_24,
+    dec_23, dec_22, dec_21, dec_20, dec_19, dec_18, dec_17, dec_16,
+    dec_15, dec_14, dec_13, dec_12, dec_11, dec_10, dec_9,  dec_8,
+    dec_7,  dec_6,  dec_5,  dec_4,  dec_3,  dec_2,  dec_1,  dec_0
+}
+
+dec_64_127 = {
+    dec_127, dec_126, dec_125, dec_124, dec_123, dec_122, dec_121, dec_120,
+    dec_119, dec_118, dec_117, dec_116, dec_115, dec_114, dec_113, dec_112,
+    dec_111, dec_110, dec_109, dec_108, dec_107, dec_106, dec_105, dec_104,
+    dec_103, dec_102, dec_101, dec_100, dec_99,  dec_98,  dec_97,  dec_96,
+    dec_95,  dec_94,  dec_93,  dec_92,  dec_91,  dec_90,  dec_89,  dec_88,
+    dec_87,  dec_86,  dec_85,  dec_84,  dec_83,  dec_82,  dec_81,  dec_80,
+    dec_79,  dec_78,  dec_77,  dec_76,  dec_75,  dec_74,  dec_73,  dec_72,
+    dec_71,  dec_70,  dec_69,  dec_68,  dec_67,  dec_66,  dec_65,  dec_64
+}
+
+dec_128_130 = {1'b0, dec_129, dec_128} // Line 130 tied to zero (unused)
+---
+
+// RandomLogic.hdl
+CHIP RandomLogic
+
+IN
+dec_0_63[64], dec_64_127[64], dec_128_130[3]
+ir[8]
+t0, t1, t2, t3, t4, t5
+db[8]
+acr, avr
+nmi_pending, irq_pending
+dores, b_out, so, rdy
+
+OUT
+endx, i_flag
+y_sb, x_sb, sb_y, sb_x, s_sb, s_adl, sb_s
+adh_pch, pch_adh, pch_db, adl_pcl, pcl_adl, pcl_db, inc_pc
+adh_abh, adl_abl, dl_adl, dl_adh, dl_db, wr
+sb_ac, ac_sb, ac_db, add_sb, add_adl
+ndb_add, db_add, zero_add, sb_add, adl_add
+sums, ands, eors, ors, srs
+
+PARTS
+// =====================================================================================================================
+// INTERMEDIATE CONTROL SIGNALS (Cross-Domain)
+// Generating these once to prevent redoing work inside sub-evaluations
+// =====================================================================================================================
+// STOR: Intermediate signal for Store instructions (Line 97)
+stor = dec_64_127[33] 
+
+// STKOP (Stack Operation): Lines 21-26, 40
+Neq<7>(a={dec_0_63[40], dec_0_63[26], dec_0_63[25], dec_0_63[24], dec_0_63[23], dec_0_63[22], dec_0_63[21]}, b=7'b0, out=stkop)
+
+// ENDX (Long Instruction Completion): Lines 96, 100-104
+Neq<6>(a={dec_64_127[40], dec_64_127[39], dec_64_127[38], dec_64_127[37], dec_64_127[36], dec_64_127[32]}, b=6'b0, out=endx)
+
+// Auxiliary Timing & Instruction Boundaries
+jsr2  = dec_0_63[48]
+jsr_5 = dec_0_63[56]
+rts_5 = dec_64_127[20]
+br2   = dec_64_127[16] // dec_80
+br3   = dec_64_127[29] // dec_93
+
+// =====================================================================================================================
+// REGISTER CONTROL
+// Controls moving index registers/stack to and from internal buses
+// =====================================================================================================================
+// Y => SB
+Neq<3>(a={dec_0_63[2], dec_0_63[1], dec_0_63[0]}, b=3'b0, out=y_sb_1)
+Neq<3>(a={dec_0_63[20], dec_0_63[19], dec_0_63[18]}, b=3'b0, out=y_sb_2)
+Neq<3>(a={dec_0_63[5], dec_0_63[4], dec_0_63[3]}, b=3'b0, out=y_sb_3)
+And<1>(a=stor, b=y_sb_1, out=y_sb_stor)
+Or<3>(a={y_sb_stor, y_sb_2, y_sb_3}, out=y_sb)
+
+// X => SB
+Neq<3>(a={dec_0_63[9], dec_0_63[8], dec_0_63[7]}, b=3'b0, out=x_sb_1)
+Neq<5>(a={dec_0_63[14], dec_0_63[13], dec_0_63[12], dec_0_63[11], dec_0_63[10]}, b=5'b0, out=x_sb_2)
+And<1>(a=stor, b=x_sb_1, out=x_sb_stor)
+Or<1>(a=x_sb_stor, b=x_sb_2, out=x_sb)
+
+// SB => Y and SB => X
+Neq<2>(a={dec_0_63[20], dec_0_63[19]}, b=2'b0, out=sb_y)
+Neq<4>(a={dec_0_63[17], dec_0_63[16], dec_0_63[15], dec_0_63[14]}, b=4'b0, out=sb_x)
+
+// Stack pointer tracking
+Neq<3>(a={dec_0_63[14], dec_0_63[13], dec_0_63[12]}, b=3'b0, out=s_sb)
+sb_s = dec_0_63[13] // TXS is Line 13
+stk2 = dec_0_63[35] // Line 35
+Or<1>(a=stkop, b=stk2, out=s_adl)
+
+// =====================================================================================================================
+// PC CONTROL
+// Controls moving the Program Counter to buses and incrementation
+// =====================================================================================================================
+// ADH => PCH 
+Neq<5>(a={rts_5, t0, t1, br2, br3}, b=5'b0, out=adh_pch)
+Not<1>(in=adh_pch, out=pch_adh) // PCH_ADH defaults when ADH_PCH is inactive
+
+// PCH => DB and PCL => DB
+Neq<3>(a={jsr_5, dec_64_127[14], dec_64_127[13]}, b=3'b0, out=pch_db) // dec_77, dec_78
+pcl_db = pch_db
+
+// ADL => PCL
+Neq<3>(a={t1, br2, br3}, b=3'b0, out=adl_pcl)
+Not<1>(in=adl_pcl, out=pcl_adl) // PCL_ADL defaults when ADL_PCL is inactive
+
+// Increment PC (active mostly when fetch is occurring or advancing cycle)
+// Note: Hardware uses active-low. Transpiler expects active-high representation here.
+Or<1>(a=t0, b=t1, out=inc_pc)
+
+// =====================================================================================================================
+// BUS CONTROL
+// Governs ADL, ADH, and DB routing
+// =====================================================================================================================
+Or<1>(a=t1, b=t2, out=adh_abh)
+adl_abl = adh_abh
+
+dl_adl = dec_64_127[17] // dec_81 (Zero Page)
+dl_adh = pch_db         // Reusing PCH_DB intermediate signal equivalent for DL_ADH
+dl_db  = 1'b1           // Handled transparently by CPU.hdl Read Mode multiplexing
+
+// Write command triggered primarily by STOR
+wr = stor
+
+// =====================================================================================================================
+// ALU & ACCUMULATOR CONTROL
+// Governs arithmetic routing, latching, and ALU functions
+// =====================================================================================================================
+Neq<7>(a={dec_0_63[62], dec_0_63[61], dec_0_63[60], dec_0_63[59], dec_0_63[58], dec_0_63[57], dec_0_63[55]}, b=7'b0, out=sb_ac)
+
+Neq<2>(a={dec_64_127[4], dec_64_127[3]}, b=2'b0, out=ac_sb) // dec_67, 68
+And<1>(a=dec_64_127[15], b=stor, out=ac_db)                 // STA (dec_79)
+
+// ALU Input Multiplexing
+Neq<3>(a={dec_0_63[51], dec_0_63[50], dec_0_63[49]}, b=3'b0, out=ndb_add)
+Neq<3>(a={dec_0_63[54], dec_0_63[53], dec_0_63[52]}, b=3'b0, out=db_add)
+Neq<3>(a={dec_64_127[2], dec_64_127[1], dec_64_127[0]}, b=3'b0, out=zero_add) // dec_64, 65, 66
+Neq<3>(a={dec_64_127[8], dec_64_127[7], dec_64_127[6]}, b=3'b0, out=sb_add)   // dec_70, 71, 72
+Neq<2>(a={dec_64_127[10], dec_64_127[9]}, b=2'b0, out=adl_add)                // dec_73, 74
+
+Neq<2>(a={dec_0_63[14], dec_0_63[13]}, b=2'b0, out=add_sb)
+Neq<2>(a={dec_64_127[18], dec_64_127[17]}, b=2'b0, out=add_adl)               // dec_81, 82
+
+// ALU Operations
+sums = db_add
+Neq<2>(a={dec_64_127[6], dec_64_127[5]}, b=2'b0, out=ands) // dec_69, 70
+eors = dec_0_63[29]
+ors  = dec_0_63[32]
+Neq<2>(a={dec_64_127[12], dec_64_127[11]}, b=2'b0, out=srs) // dec_75, 76
+
+// =====================================================================================================================
+// FLAGS CONTROL 
+// =====================================================================================================================
+// Simple static routing of Interrupt Mask (I) flag output for structural completeness
+i_flag = dec_64_127[44] // dec_108 CLI/SEI
+---
+
+// cpu_constants.const
+// Masks for predecode instruction classification
+MASK_2C_A     = 4'b0101;   // XXX010X1
+MASK_2C_B     = 5'b10000;  // 1XX000X0
+MASK_IMPLIED  = 3'b100;    // XXXX10X0
+MASK_PUSHPULL = 3'b000;    // 0XX0XX0X
+
+// Hardware states and defaults
+BRK_OPCODE    = 8'x00;     // Injected during interrupts
+BUS_DEFAULT   = 8'xFF;     // Internal buses precharge to 0xFF
+STATE_T0      = 2'b01;     // Base counter reset state
+---
+
+// decoder_masks.const
+MASK_M0   = 6'b100100
+MASK_M1   = 4'b1001
+MASK_M2   = 4'b1101
+MASK_M3   = 7'b1001000
+MASK_M4   = 8'b10011000
+MASK_M5   = 6'b110000
+MASK_M6   = 2'b11
+MASK_M7   = 3'b101
+MASK_M8   = 4'b0001
+MASK_M9   = 7'b1000101
+MASK_M10  = 7'b1100101
+MASK_M11  = 6'b111000
+MASK_M12  = 4'b1001
+MASK_M13  = 7'b1001101
+MASK_M14  = 4'b1011
+MASK_M16  = 8'b11101000
+MASK_M17  = 7'b1011101
+MASK_M19  = 6'b101100
+MASK_M20  = 6'b101000
+MASK_M21  = 8'b00100000
+MASK_M22  = 8'b00000000
+MASK_M23  = 7'b0001000
+MASK_M24  = 8'b01100000
+MASK_M25  = 7'b0101000
+MASK_M26  = 8'b01000000
+MASK_M27  = 4'b0111
+MASK_M29  = 4'b0101
+MASK_M30  = 7'b0101100
+MASK_M31  = 3'b011
+MASK_M32  = 4'b0001
+MASK_M33  = 1'b0
+MASK_M35  = 5'b00000
+MASK_M36  = 4'b0000
+MASK_M37  = 7'b0000000
+MASK_M42  = 2'b11
+MASK_M44  = 4'b1111
+MASK_M47  = 7'b0100000
+MASK_M49  = 5'b11000
+MASK_M50  = 4'b1101
+MASK_M51  = 4'b1111
+MASK_M52  = 3'b111
+MASK_M53  = 4'b0011
+MASK_M55  = 3'b001
+MASK_M59  = 2'b01
+MASK_M61  = 5'b00101
+MASK_M63  = 8'b01101000
+MASK_M64  = 4'b1011
+MASK_M65  = 1'b1
+MASK_M66  = 8'b10101000
+MASK_M68  = 7'b1010101
+MASK_M69  = 7'b0010100
+MASK_M70  = 4'b0011
+MASK_M73  = 5'b10000
+MASK_M74  = 8'b01001000
+MASK_M75  = 6'b010101
+MASK_M76  = 3'b011
+MASK_M79  = 4'b1001
+MASK_M81  = 2'b01
+MASK_M82  = 3'b001
+MASK_M83  = 1'b1
+MASK_M87  = 7'b0000000
+MASK_M97  = 3'b100
+MASK_M99  = 8'b00001000
+MASK_M104 = 8'b01001100
+MASK_M106 = 2'b11
+MASK_M108 = 7'b0111000
+MASK_M110 = 7'b0011000
+MASK_M111 = 3'b101
+MASK_M114 = 8'b00101000
+MASK_M117 = 7'b1101100
+MASK_M118 = 6'b000101
+MASK_M119 = 6'b110000
+MASK_M120 = 7'b1111000
+MASK_M121 = 1'b0
+MASK_M123 = 3'b001
+MASK_M126 = 1'b0
+MASK_M127 = 8'b10111000
+MASK_M128 = 3'b100
+MASK_M129 = 6'b001000

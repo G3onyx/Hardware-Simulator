@@ -1,4 +1,5 @@
 CHIP RAM <ADDR_SIZE, DATA_SIZE>
+// Capacity = 2^ADDR_SIZE * DATA_SIZE
 
 @primitive
 

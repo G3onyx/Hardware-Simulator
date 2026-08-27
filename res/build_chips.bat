@@ -1,16 +1,23 @@
 @echo off
 setlocal
 
-:: 1. Ask for the project folder name (PROJECT_DIR)
-set /p PROJECT_DIR="Enter the name of the project folder: "
+:: 1. Ask for the project folder name or sub-path (PROJECT_DIR)
+set /p PROJECT_DIR="Enter the name of the project folder (e.g. hack, nes/6502): "
 
-:: Define paths based on script location (res/)
+:: Normalize any forward slashes to backslashes
+set "PROJECT_DIR=%PROJECT_DIR:/=\%"
+
+:: Define paths based on script location (%~dp0)
 set "GLOBAL_DIR=%~dp0global"
 set "TARGET_PROJ_DIR=%~dp0projects\%PROJECT_DIR%"
-set "OUTPUT_FILE=%TARGET_PROJ_DIR%\%PROJECT_DIR%-chips.txt"
+
+:: Extract the leaf folder name (e.g., gets '6502' from 'nes\6502') for the output file
+for %%I in ("%TARGET_PROJ_DIR%") do set "PROJ_NAME=%%~nxI"
+set "OUTPUT_FILE=%TARGET_PROJ_DIR%\%PROJ_NAME%-chips.txt"
 
 :: Validate that the project directory exists
-if not exist "%TARGET_PROJ_DIR%" (
+:: (Adding a trailing slash ensures it checks for a directory specifically)
+if not exist "%TARGET_PROJ_DIR%\" (
     echo Error: Project directory "%TARGET_PROJ_DIR%" does not exist.
     pause
     exit /b 1
@@ -19,7 +26,7 @@ if not exist "%TARGET_PROJ_DIR%" (
 :: 2. Cleanup old output file if it exists
 if exist "%OUTPUT_FILE%" del "%OUTPUT_FILE%"
 
-echo Building %PROJECT_DIR%-chips.txt...
+echo Building %PROJ_NAME%-chips.txt...
 set "first=1"
 
 :: 3. Scan the global directory first for .hdl and .const files
@@ -35,7 +42,7 @@ echo Scanning project directory "%TARGET_PROJ_DIR%"...
 for /r "%TARGET_PROJ_DIR%" %%F in (*.hdl *.const) do call :AppendFile "%%F"
 
 echo.
-echo Done! Code combined into %PROJECT_DIR%-chips.txt
+echo Done! Code combined into %PROJ_NAME%-chips.txt
 pause
 exit /b 0
 

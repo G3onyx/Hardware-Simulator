@@ -107,13 +107,19 @@ namespace Utils {
 struct Config {
     std::string active_config;
     std::string target_chip;
+
     double target_hz = 0.0;
     double target_fps = 30.0;
     bool max_speed = true;
+
     std::unordered_map<std::string, std::string> rom_map;
+    std::string script_path;
+
     std::vector<std::string> search_paths;
     std::unordered_map<std::string, std::string> pin_actions;
+
     bool run_tests = false;
+
 
     static Config load() {
         std::ifstream file(Paths::CONFIG_FILE);
@@ -162,8 +168,9 @@ struct Config {
                     if (key == "TARGET_CHIP") config.target_chip = val;
                     else if (key == "CLOCK_SPEED") config.target_hz = std::stod(val);
                     else if (key == "TARGET_FPS") config.target_fps = std::stod(val);
-                    else if (key == "MAX_SPEED") config.max_speed = (val == "true");
-                    else if (key == "RUN_TESTS") config.run_tests = (val == "true");
+                    else if (key == "MAX_SPEED") config.max_speed = val == "true";
+                    else if (key == "RUN_TESTS") config.run_tests = val == "true";
+                    else if (key == "SCRIPT") config.script_path = Utils::resolve_file(val, config.search_paths);
                     else if (key == "LOAD_ROM") {
                         const size_t colon = val.find(':');
                         if (colon != std::string::npos) pending_roms.emplace_back(val.substr(0, colon), val.substr(colon + 1));
@@ -180,8 +187,8 @@ struct Config {
         if (config.active_config.empty())
             throw std::runtime_error(std::format("[CRITICAL ERROR] '{}' is missing a global 'CONFIG = <name>' declaration", Paths::CONFIG_FILE));
 
-        if (config.target_chip.empty())
-            throw std::runtime_error(std::format("[CRITICAL ERROR] '{}' block '{}' is missing TARGET_CHIP", Paths::CONFIG_FILE, config.active_config));
+        if (config.target_chip.empty() && config.script_path.empty())
+            throw std::runtime_error(std::format("[CRITICAL ERROR] '{}' block '{}' is missing TARGET_CHIP or SCRIPT", Paths::CONFIG_FILE, config.active_config));
 
         for (const auto& [tag, file_name] : pending_roms)
             config.rom_map[tag] = Utils::resolve_file(file_name, config.search_paths);

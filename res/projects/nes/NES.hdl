@@ -1,0 +1,10 @@
+CHIP NES  // NTSC NES
+
+@toplevel(21477272)  // Master clock of 21.477272 MHz ± 40 Hz
+
+IN
+in1[5]  // Bottom 5 bits of $4016
+in2[5]  // Bottom 5 bits of $4017
+
+OUT
+out[3]  // Bottom 3 bits of $4016

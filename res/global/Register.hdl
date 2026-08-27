@@ -1,0 +1,9 @@
+CHIP Register <SIZE>
+
+IN in[SIZE], load
+OUT out[SIZE]
+
+PARTS
+Mux<SIZE>(a=fb, b=in, sel=load, out=mux_out)
+Dff<SIZE>(in=mux_out, out=fb)
+out = fb

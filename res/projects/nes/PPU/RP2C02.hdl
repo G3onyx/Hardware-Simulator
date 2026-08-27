@@ -1,0 +1,3 @@
+CHIP RP2C02  // Ricoh 2C02 Picture Processing Unit
+
+// Divides master clock by 4

@@ -44,6 +44,7 @@ set(SRC_FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/AIG.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/Optimiser.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/ROMLoader.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/ScriptEngine.h"
 )
 
 set(ANTLR_GENERATED_SRC

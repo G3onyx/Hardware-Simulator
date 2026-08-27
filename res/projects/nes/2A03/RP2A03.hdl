@@ -1,0 +1,8 @@
+CHIP RP2A03  // Ricoh 2A03
+
+// Divides master clock by 12
+
+PARTS
+
+CPU()
+APU()

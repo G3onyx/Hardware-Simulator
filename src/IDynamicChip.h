@@ -18,7 +18,11 @@ class IDynamicChip {
 public:
     virtual ~IDynamicChip() = default;
     virtual HardwareState get_info() = 0;
+
     virtual void emulate_frame(uint64_t cycles, uint64_t keys_low, uint64_t keys_high) = 0;
+    virtual void update_combinational() = 0;
+    virtual void update_sequential() = 0;
+
     virtual void set_pin(const char* name, uint64_t value) {}
     virtual uint64_t get_pin(const char* name) { return 0; }
 };

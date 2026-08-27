@@ -1,9 +1,0 @@
-CHIP Register
-
-IN in[16], load
-OUT out[16]
-
-PARTS
-Mux<16>(a=fb, b=in, sel=load, out=mux_out)
-Dff<16>(in=mux_out, out=fb)
-out = fb

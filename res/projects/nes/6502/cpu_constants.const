@@ -1,0 +1,10 @@
+// Masks for predecode instruction classification
+MASK_2C_A     = 4'b0101;   // XXX010X1
+MASK_2C_B     = 5'b10000;  // 1XX000X0
+MASK_IMPLIED  = 3'b100;    // XXXX10X0
+MASK_PUSHPULL = 3'b000;    // 0XX0XX0X
+
+// Hardware states and defaults
+BRK_OPCODE    = 8'x00;     // Injected during interrupts
+BUS_DEFAULT   = 8'xFF;     // Internal buses precharge to 0xFF
+STATE_T0      = 2'b01;     // Base counter reset state
